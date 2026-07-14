@@ -1,0 +1,31 @@
+name: Progress update
+description: Record work, results, and the next decision for an existing workstream.
+title: "progress: "
+labels: [progress]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal or linked workstream
+      description: State the hypothesis or link the issue being advanced.
+    validations:
+      required: true
+  - type: textarea
+    id: work
+    attributes:
+      label: Work completed
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Include commands, trace/report links, measurements, or a concise result.
+    validations:
+      required: true
+  - type: textarea
+    id: next
+    attributes:
+      label: Next decision or blocker
+    validations:
+      required: true

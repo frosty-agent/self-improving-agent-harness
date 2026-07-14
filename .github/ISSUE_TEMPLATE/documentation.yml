@@ -1,0 +1,25 @@
+name: Documentation
+description: Propose or track a documentation, decision-record, or research-note change.
+title: "docs: "
+labels: [documentation]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Documentation need
+      description: What must be clear, recorded, or decided?
+    validations:
+      required: true
+  - type: textarea
+    id: audience
+    attributes:
+      label: Intended audience and outcome
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: Identify documents, decisions, evidence, and unresolved questions.
+    validations:
+      required: true

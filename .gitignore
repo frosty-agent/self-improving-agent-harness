@@ -1,0 +1,20 @@
+# Common Lisp build artifacts
+*.fasl
+*.fsl
+*.dfsl
+*.lib
+*.dx32fsl
+*.dx64fsl
+*.lx32fsl
+*.lx64fsl
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+secrets/
+
+# Editor and OS artifacts
+.DS_Store
+*~
+.#*

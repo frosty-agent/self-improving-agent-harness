@@ -1,0 +1,17 @@
+(asdf:defsystem #:self-improving-agent-harness
+  :description "A Common Lisp harness for controlled self-improving agent experiments."
+  :author "Paul Brower"
+  :license "MIT"
+  :serial t
+  :components ((:file "src/package")
+               (:file "src/backend"))
+  :in-order-to ((test-op (test-op "self-improving-agent-harness/tests"))))
+
+(asdf:defsystem #:self-improving-agent-harness/tests
+  :depends-on (#:self-improving-agent-harness)
+  :serial t
+  :components ((:file "tests/package")
+               (:file "tests/backend"))
+  :perform (test-op (operation component)
+             (declare (ignore operation component))
+             (uiop:symbol-call :self-improving-agent-harness/tests :run-tests)))
