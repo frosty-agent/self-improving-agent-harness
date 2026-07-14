@@ -17,4 +17,5 @@
    #:openrouter-backend
    #:make-openrouter-backend
    #:openrouter-backend-base-url
-   #:openrouter-backend-api-key))
+   #:openrouter-backend-api-key
+   #:run-harness))

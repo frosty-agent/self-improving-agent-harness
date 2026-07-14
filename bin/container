@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# Run any Common Lisp command for this repository inside the project container.
+set -eu
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+image=${HARNESS_IMAGE:-self-improving-agent-harness:dev}
+network_option=
+
+# Only repository-provided wrappers may disable networking. This is intentionally
+# a narrow switch instead of accepting arbitrary Docker options from the caller.
+if [ "${1:-}" = "--no-network" ]; then
+  network_option=--network=none
+  shift
+fi
+
+# Building is explicit and repeatable; source is never copied into the image.
+docker build --tag "$image" "$repo_root"
+
+# The --no-network switch is understood only by bin/container and becomes
+# Docker's --network=none option before the image name.
+if [ -f "$repo_root/.env" ]; then
+  if [ "${OPENROUTER_API_KEY+x}" = x ]; then
+    exec docker run ${network_option:-} --rm --init \
+      --env-file "$repo_root/.env" --env OPENROUTER_API_KEY \
+      --volume "$repo_root:/workspace:ro" \
+      --volume self-improving-agent-harness-cache:/cache \
+      --workdir /workspace "$image" "$@"
+  fi
+  exec docker run ${network_option:-} --rm --init \
+    --env-file "$repo_root/.env" \
+    --volume "$repo_root:/workspace:ro" \
+    --volume self-improving-agent-harness-cache:/cache \
+    --workdir /workspace "$image" "$@"
+fi
+
+if [ "${OPENROUTER_API_KEY+x}" = x ]; then
+  exec docker run ${network_option:-} --rm --init --env OPENROUTER_API_KEY \
+    --volume "$repo_root:/workspace:ro" \
+    --volume self-improving-agent-harness-cache:/cache \
+    --workdir /workspace "$image" "$@"
+fi
+
+exec docker run ${network_option:-} --rm --init \
+  --volume "$repo_root:/workspace:ro" \
+  --volume self-improving-agent-harness-cache:/cache \
+  --workdir /workspace "$image" "$@"

@@ -2,6 +2,12 @@
 
 This document captures the initial design space. Decisions become durable only after an issue discussion and an accepted experiment or ADR.
 
+## Runtime boundary
+
+All Common Lisp code—tests, scripts, the REPL, and the harness entry point—runs through the Docker runtime described in [`runtime.md`](runtime.md). The repository source mount is read-only, compiled artifacts are isolated in a Docker volume, and test runs have no network access. This provides a repeatable runtime without relying on a host Lisp installation.
+
+A provider-backed run may receive `OPENROUTER_API_KEY` at container runtime, but the image and source tree must never contain the value. The first transport implementation must preserve that boundary in traces, error messages, and reports.
+
 ## Core loop
 
 A controlled improvement iteration should have explicit inputs and outputs:

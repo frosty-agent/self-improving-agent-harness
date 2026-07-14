@@ -4,7 +4,8 @@
   :license "MIT"
   :serial t
   :components ((:file "src/package")
-               (:file "src/backend"))
+               (:file "src/backend")
+               (:file "src/main"))
   :in-order-to ((test-op (test-op "self-improving-agent-harness/tests"))))
 
 (asdf:defsystem #:self-improving-agent-harness/tests
