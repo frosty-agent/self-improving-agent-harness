@@ -26,4 +26,9 @@ The wrapper rebuilds before every command, relying on Docker layer caching when 
 
 ## Current boundary
 
-`bin/run` is a readiness check, not a provider call: the OpenRouter transport has not been implemented. Its Docker execution verifies that the actual harness entry point, rather than a host-only script, can load and construct its configured backend. Provider requests, tools, evaluators, and improvement loops remain subject to their linked GitHub issues.
+`bin/run` remains a readiness check: it verifies that the actual harness entry
+point, rather than a host-only script, can load and construct its configured
+backend. The OpenRouter non-streaming chat-completions adapter is implemented;
+use a dedicated live integration command with a runtime-injected key for a
+provider request. Tool execution, evaluators, improvement loops, and durable
+experiment reporting remain separate workstreams.

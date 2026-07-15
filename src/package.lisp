@@ -14,6 +14,10 @@
    #:completion-response-text
    #:completion-response-model
    #:completion-response-raw
+   #:completion-response-tool-calls
+   #:completion-response-finish-reason
+   #:completion-response-provider-request-id
+   #:completion-response-usage
    #:openrouter-backend
    #:make-openrouter-backend
    #:openrouter-backend-base-url

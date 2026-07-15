@@ -25,11 +25,15 @@ provider-neutral controls such as temperature or maximum output tokens."
 
 (defstruct (completion-response
             (:constructor make-completion-response
-                (&key text model raw)))
+                (&key text model raw tool-calls finish-reason provider-request-id usage)))
   "A provider-neutral response plus unmodified provider data in RAW."
   text
   model
-  raw)
+  raw
+  tool-calls
+  finish-reason
+  provider-request-id
+  usage)
 
 (defclass openrouter-backend (backend)
   ((base-url :initarg :base-url
@@ -39,9 +43,8 @@ provider-neutral controls such as temperature or maximum output tokens."
             :reader openrouter-backend-api-key))
   (:documentation "Configuration for the first backend adapter.
 
-The transport implementation is intentionally deferred until the request and
-trace contracts are designed and tested. API keys are supplied at runtime,
-typically from OPENROUTER_API_KEY, never committed to the repository."))
+API keys are supplied at runtime, typically from OPENROUTER_API_KEY, never
+committed to the repository."))
 
 (defun make-openrouter-backend (&key api-key
                                   (base-url "https://openrouter.ai/api/v1"))
@@ -51,6 +54,101 @@ typically from OPENROUTER_API_KEY, never committed to the repository."))
                  :api-key api-key
                  :base-url base-url))
 
+(defun openrouter-request-payload (request)
+  "Return REQUEST as a provider payload before JSON serialization.
+
+The payload intentionally retains the project's keyword-based representation;
+the transport layer owns conversion to OpenRouter's JSON field names."
+  (append (list :model (completion-request-model request)
+                :messages (completion-request-messages request))
+          (completion-request-options request)))
+
+(defun openrouter-json-name (keyword)
+  (substitute #\_ #\- (string-downcase (symbol-name keyword))))
+
+(defun openrouter-json-value (value)
+  (cond
+    ((and (listp value) (keywordp (first value)))
+     (let ((object (make-hash-table :test #'equal)))
+       (loop for (key item) on value by #'cddr
+             do (setf (gethash (openrouter-json-name key) object)
+                      (openrouter-json-value item)))
+       object))
+    ((listp value) (mapcar #'openrouter-json-value value))
+    (t value)))
+
+(defun openrouter-request-json (request)
+  "Serialize REQUEST to OpenRouter's JSON field naming convention."
+  (with-output-to-string (stream)
+    (yason:encode (openrouter-json-value (openrouter-request-payload request))
+                  stream)))
+
+(defun openrouter-json-field (object name)
+  "Read NAME from a decoded OpenRouter JSON object represented as an alist."
+  (etypecase object
+    (hash-table (gethash name object))
+    (list (cdr (assoc name object :test #'string=)))))
+
+(defun openrouter-list (value)
+  (typecase value
+    (null '())
+    (list value)
+    (vector (coerce value 'list))))
+
+(defun openrouter-normalize-tool-call (tool-call)
+  (let ((function (openrouter-json-field tool-call "function")))
+    (list :id (openrouter-json-field tool-call "id")
+          :type (openrouter-json-field tool-call "type")
+          :name (openrouter-json-field function "name")
+          :arguments (openrouter-json-field function "arguments"))))
+
+(defun openrouter-response-from-json (raw-response)
+  "Normalize one decoded, non-streaming OpenRouter response alist."
+  (let* ((choice (first (openrouter-list
+                         (openrouter-json-field raw-response "choices"))))
+         (message (openrouter-json-field choice "message"))
+         (usage (openrouter-json-field raw-response "usage")))
+    (make-completion-response
+     :text (or (openrouter-json-field message "content") "")
+     :model (openrouter-json-field raw-response "model")
+     :raw raw-response
+     :tool-calls (mapcar #'openrouter-normalize-tool-call
+                         (openrouter-list
+                          (openrouter-json-field message "tool_calls")))
+     :finish-reason (openrouter-json-field choice "finish_reason")
+     :provider-request-id (openrouter-json-field raw-response "id")
+     :usage (list :prompt-tokens (openrouter-json-field usage "prompt_tokens")
+                  :completion-tokens
+                  (openrouter-json-field usage "completion_tokens")
+                  :total-tokens (openrouter-json-field usage "total_tokens")))))
+
+(defun openrouter-completions-url (backend)
+  (format nil "~A/chat/completions"
+          (string-right-trim "/" (openrouter-backend-base-url backend))))
+
+(defun openrouter-response-body-string (body)
+  "Convert Drakma's text or octet response body to UTF-8 JSON text."
+  (typecase body
+    (string body)
+    (vector
+     (sb-ext:octets-to-string
+      (map '(vector (unsigned-byte 8)) #'identity body)
+      :external-format :utf-8))))
+
 (defmethod complete ((backend openrouter-backend) request)
-  (declare (ignore backend request))
-  (error "OpenRouter transport is not implemented yet; see the OpenRouter backend issue."))
+  (let ((api-key (openrouter-backend-api-key backend)))
+    (unless (and (stringp api-key) (plusp (length api-key)))
+      (error "OPENROUTER_API_KEY is required for OpenRouter requests."))
+    (multiple-value-bind (body status-code response-headers)
+        (drakma:http-request
+         (openrouter-completions-url backend)
+         :method :post
+         :content (openrouter-request-json request)
+         :content-type "application/json"
+         :additional-headers
+         `(("Authorization" . ,(format nil "Bearer ~A" api-key))))
+      (declare (ignore response-headers))
+      (unless (<= 200 status-code 299)
+        (error "OpenRouter request failed with HTTP status ~D." status-code))
+      (openrouter-response-from-json
+       (yason:parse (openrouter-response-body-string body))))))

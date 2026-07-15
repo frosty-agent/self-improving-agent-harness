@@ -1,7 +1,9 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends --yes sbcl ca-certificates \
+    && apt-get install --no-install-recommends --yes \
+       sbcl ca-certificates \
+       cl-drakma cl-yason cl-alexandria cl-trivial-gray-streams \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

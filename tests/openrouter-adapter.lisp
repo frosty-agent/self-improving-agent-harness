@@ -1,0 +1,87 @@
+(in-package #:self-improving-agent-harness/tests)
+
+(defun ensure-equal (expected actual description)
+  (unless (equal expected actual)
+    (error "Test failed: ~A~%Expected: ~S~%Actual: ~S"
+           description expected actual)))
+
+(defun run-openrouter-adapter-tests ()
+  (let* ((request (make-completion-request
+                   :model "openai/gpt-4.1-mini"
+                   :messages '((:role "system" :content "Be concise.")
+                               (:role "user" :content "Say hello."))
+                   :options '(:temperature 0.2 :max-tokens 64)))
+         (backend (make-openrouter-backend :api-key "test-key"))
+         (payload (self-improving-agent-harness::openrouter-request-payload
+                   request)))
+    (ensure-equal "test-key" (openrouter-backend-api-key backend)
+                  "backend retains its runtime API key")
+    (ensure-equal "openai/gpt-4.1-mini" (getf payload :model)
+                  "request payload retains the selected model")
+    (ensure-equal '((:role "system" :content "Be concise.")
+                    (:role "user" :content "Say hello."))
+                  (getf payload :messages)
+                  "request payload retains ordered messages")
+    (ensure-equal 0.2 (getf payload :temperature)
+                  "request payload includes temperature")
+    (ensure-equal 64 (getf payload :max-tokens)
+                  "request payload includes the output-token limit"))
+  (let* ((raw-function (list (cons "name" "echo")
+                             (cons "arguments" "json-arguments")))
+         (raw-tool-call (list (cons "id" "call-123")
+                              (cons "type" "function")
+                              (cons "function" raw-function)))
+         (raw-message (list (cons "content" "")
+                            (cons "tool_calls" (list raw-tool-call))))
+         (raw-choice (list (cons "finish_reason" "tool_calls")
+                           (cons "message" raw-message)))
+         (raw-response (list (cons "id" "gen-123")
+                             (cons "model" "openai/gpt-4.1-mini")
+                             (cons "choices" (list raw-choice))
+                             (cons "usage" (list (cons "prompt_tokens" 10)
+                                                 (cons "completion_tokens" 5)
+                                                 (cons "total_tokens" 15)))))
+         (response (self-improving-agent-harness::openrouter-response-from-json
+                    raw-response)))
+    (ensure-equal "" (completion-response-text response)
+                  "response parser retains assistant content")
+    (ensure-equal "openai/gpt-4.1-mini" (completion-response-model response)
+                  "response parser retains resolved model")
+    (ensure-equal "tool_calls"
+                  (self-improving-agent-harness:completion-response-finish-reason
+                   response)
+                  "response parser retains finish reason")
+    (ensure-equal "gen-123"
+                  (self-improving-agent-harness:completion-response-provider-request-id
+                   response)
+                  "response parser retains the provider request ID")
+    (ensure-equal '(:prompt-tokens 10 :completion-tokens 5 :total-tokens 15)
+                  (self-improving-agent-harness:completion-response-usage response)
+                  "response parser normalizes usage")
+    (ensure-equal '(:id "call-123" :type "function" :name "echo"
+                    :arguments "json-arguments")
+                  (first (self-improving-agent-harness:completion-response-tool-calls
+                          response))
+                  "response parser normalizes tool calls"))
+  (let* ((request (make-completion-request
+                   :model "openai/gpt-4.1-mini"
+                   :messages '((:role "system" :content "Be concise.")
+                               (:role "user" :content "Say hello."))
+                   :options '(:temperature 0.2 :max-tokens 64)))
+         (json (self-improving-agent-harness::openrouter-request-json request))
+         (compact-json (remove-if (lambda (character)
+                                    (member character
+                                            '(#\Space #\Tab #\Newline #\Return)))
+                                  json)))
+    (ensure-true (search "\"model\":\"openai/gpt-4.1-mini\"" compact-json)
+                 "request JSON contains the selected model")
+    (ensure-true (search "\"role\":\"system\"" compact-json)
+                 "request JSON serializes the system role")
+    (ensure-true (search "\"max_tokens\":64" compact-json)
+                 "request JSON uses OpenRouter's max_tokens field"))
+  (ensure-equal "{\"id\":\"gen-123\"}"
+                (self-improving-agent-harness::openrouter-response-body-string
+                 #(123 34 105 100 34 58 34 103 101 110 45 49 50 51 34 125))
+                "response decoder converts Drakma octets to UTF-8 text")
+  (format t "OpenRouter adapter payload, response, and JSON tests passed.~%")
+  t)

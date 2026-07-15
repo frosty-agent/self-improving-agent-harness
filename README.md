@@ -28,7 +28,11 @@ experiment/task -> harness -> backend protocol -> OpenRouter (first adapter)
                       +-> trace store, tool boundary, evaluator, improvement policy
 ```
 
-The core protocol is introduced in `src/backend.lisp`. It separates a request from the backend used to complete it. A concrete OpenRouter transport, persistence layer, tool sandbox, and evaluation loop are deliberately tracked as GitHub issues.
+The core protocol is introduced in `src/backend.lisp`. It separates a request
+from the backend used to complete it. The first concrete adapter implements
+OpenRouter's non-streaming Chat Completions API with runtime API-key
+authentication. Persistence, tool execution, and the evaluation loop remain
+separate workstreams.
 
 ## Docker-first runtime
 
@@ -49,14 +53,23 @@ make repl
 
 The equivalent direct commands are `./bin/test`, `./bin/run`, and `./bin/container --noinform`. `bin/container` rebuilds the image before each invocation, mounts the repository at `/workspace:ro`, and keeps ASDF's cache in the `self-improving-agent-harness-cache` volume.
 
-For the future OpenRouter adapter, place a real key in an untracked `.env` file or explicitly export it before invoking `./bin/run`:
+For a real OpenRouter request, place a key in an untracked `.env` file or
+explicitly export it before invoking the Docker-backed live smoke command:
 
 ```bash
 cp .env.example .env
 # Set OPENROUTER_API_KEY in .env; do not commit it.
 ```
 
-The wrapper forwards the variable to the container without printing it or copying it into the image. Tests run with `--network none`; a real provider-backed harness run has network access by design.
+Then run:
+
+```bash
+make live-smoke
+```
+
+The wrapper forwards the variable to the container without printing it or
+copying it into the image. Tests run with `--network none`; `make live-smoke`
+has network access by design and makes one minimal provider request.
 
 See [`docs/runtime.md`](docs/runtime.md) for runtime guarantees and [`docs/initial-architecture.md`](docs/initial-architecture.md) for design questions.
 

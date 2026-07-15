@@ -2,6 +2,7 @@
   :description "A Common Lisp harness for controlled self-improving agent experiments."
   :author "Paul Brower"
   :license "MIT"
+  :depends-on (#:drakma #:yason)
   :serial t
   :components ((:file "src/package")
                (:file "src/backend")
@@ -12,7 +13,8 @@
   :depends-on (#:self-improving-agent-harness)
   :serial t
   :components ((:file "tests/package")
-               (:file "tests/backend"))
+               (:file "tests/backend")
+               (:file "tests/openrouter-adapter"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (uiop:symbol-call :self-improving-agent-harness/tests :run-tests)))

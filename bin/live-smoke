@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Execute one real, minimal OpenRouter request in the Docker runtime.
+set -eu
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec "$repo_root/bin/container" \
+  --non-interactive \
+  --load scripts/live-smoke.lisp
