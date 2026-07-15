@@ -103,8 +103,10 @@ message, each completed user/assistant exchange, and tool-call/tool-result
 messages. Empty interactive input makes no provider request. A failed turn prints its
 safe failure message on stderr, leaves that history untouched, and the session
 continues; normal exit after any failed turn is non-zero. Final assistant content
-goes to stdout while tool and outcome diagnostics go to stderr. `--prompt`
-retains the existing one-shot exit behavior. Run
+goes to stdout while tool and outcome diagnostics go to stderr. A nonzero
+`run_shell` command returns its exit status and combined output to the model as a
+tool result, allowing it to explain or correct the command rather than aborting
+the chat. `--prompt` retains the existing one-shot exit behavior. Run
 `./bin/chat --help` for defaults and requirements.
 
 See [`docs/runtime.md`](docs/runtime.md) for runtime guarantees and [`docs/initial-architecture.md`](docs/initial-architecture.md) for design questions.

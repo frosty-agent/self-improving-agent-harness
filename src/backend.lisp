@@ -175,7 +175,8 @@ the transport layer owns conversion to OpenRouter's JSON field names."
              (handler-case
                  (funcall handler arguments)
                (error ()
-                 (error "Tool handler ~S failed." (getf tool-call :name))))))
+                 (format nil "TOOL_ERROR: Tool ~A failed."
+                         (getf tool-call :name))))))
       (list :role "tool"
             :tool-call-id (getf tool-call :id)
             :content (openrouter-tool-result-content result)))))

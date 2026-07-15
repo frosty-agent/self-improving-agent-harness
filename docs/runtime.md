@@ -32,7 +32,10 @@ The wrapper rebuilds before every command, relying on Docker layer caching when 
 Every `bin/container` run mounts the named Docker volume
 `self-improving-agent-harness-logs` at `/logs`. `bin/chat` appends UTF-8 JSON
 lines to `/logs/chat.log` for session lifecycle, user turns, completed assistant
-turns, tool invocations, and safe failure messages. It does not log the
+turns, tool invocations, and safe failure messages. A nonzero `run_shell`
+command is returned to the model as a tool result with its exit status and
+combined output, so the model can explain or correct it without aborting the
+turn. It does not log the
 OpenRouter API key or raw tool output, but prompts, assistant responses, and
 tool commands can themselves be sensitive.
 

@@ -84,22 +84,29 @@
       `(("echo" . ,(lambda (arguments) arguments)))))
    "invalid JSON arguments"
    "malformed tool arguments produce a redacted outcome")
-  (handler-case
-      (self-improving-agent-harness:run-tool-loop
-       (make-instance 'scripted-backend
-                      :name "scripted"
-                      :responses (list (make-completion-response
-                                        :tool-calls '((:id "call-failure" :type "function"
-                                                       :name "echo" :arguments "{}")))))
-       (make-completion-request :model "test/model" :messages '())
-       `(("echo" . ,(lambda (arguments)
-                       (declare (ignore arguments))
-                       (error "private handler detail")))))
-    (error (condition)
-      (ensure-true (search "Tool handler \"echo\" failed" (princ-to-string condition))
-                   "handler failures produce an explicit outcome")
-      (ensure-true (not (search "private handler detail" (princ-to-string condition)))
-                   "handler failure details are redacted")))
+  (let* ((tool-response
+           (make-completion-response
+            :model "test/model"
+            :tool-calls '((:id "call-failure" :type "function" :name "echo"
+                           :arguments "{}"))))
+         (final-response (make-completion-response :text "the tool failed" :model "test/model"))
+         (backend (make-instance 'scripted-backend :name "scripted"
+                                 :responses (list tool-response final-response)))
+         (result
+           (self-improving-agent-harness:run-tool-loop
+            backend
+            (make-completion-request :model "test/model" :messages '())
+            `(("echo" . ,(lambda (arguments)
+                            (declare (ignore arguments))
+                            (error "private handler detail")))))))
+    (ensure-equal "the tool failed" (completion-response-text result)
+                  "handler failures continue to a final model response")
+    (let* ((continuation (first (scripted-backend-received-requests backend)))
+           (tool-message (second (completion-request-messages continuation))))
+      (ensure-true (search "TOOL_ERROR: Tool echo failed." (getf tool-message :content))
+                   "handler failures are returned to the model as tool output")
+      (ensure-true (not (search "private handler detail" (getf tool-message :content)))
+                   "handler failure details remain redacted from the model")))
   (ensure-error-containing
    (lambda ()
      (self-improving-agent-harness:run-tool-loop

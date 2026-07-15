@@ -10,16 +10,20 @@ error so the tool loop can report a safe, redacted failure outcome."
       (error "run_shell requires a non-empty command."))
     (log-interaction :info "tool-call" :tool "run_shell" :command command)
     (format *error-output* "TOOL_CALL name=run_shell~%")
-    (handler-case
-        (let ((output
-                (uiop:run-program (list "/bin/sh" "-lc" command)
-                                  :output :string
-                                  :error-output :output
-                                  :external-format :utf-8)))
-          (log-interaction :info "tool-completed" :tool "run_shell"
-                           :command command :output-length (length output))
-          output)
-      (error (condition)
-        (log-interaction :error "tool-failed" :tool "run_shell"
-                         :command command :message (princ-to-string condition))
-        (error condition)))))
+    (multiple-value-bind (output ignored-error-output exit-status)
+        (uiop:run-program (list "/bin/sh" "-lc" command)
+                          :output :string
+                          :error-output :output
+                          :external-format :utf-8
+                          :ignore-error-status t)
+      (declare (ignore ignored-error-output))
+      (if (zerop exit-status)
+          (progn
+            (log-interaction :info "tool-completed" :tool "run_shell"
+                             :command command :output-length (length output))
+            output)
+          (progn
+            (log-interaction :error "tool-failed" :tool "run_shell"
+                             :command command :exit-status exit-status)
+            (format nil "Command failed with exit status ~D.~%~A"
+                    exit-status output))))))
