@@ -1,0 +1,69 @@
+#!/usr/bin/env sh
+# Run one OpenRouter chat/tool-call session inside the project Docker runtime.
+set -eu
+
+usage() {
+  cat <<'EOF'
+Usage: bin/chat [--model MODEL] [--max-rounds N] [--prompt TEXT]
+
+Run one prompt through OpenRouter and the harness tool loop until the model
+returns a final response without tool calls. The prompt may be supplied by
+--prompt or stdin. OPENROUTER_API_KEY must be exported or present in .env.
+
+Defaults:
+  --model       openai/gpt-4.1-mini
+  --max-rounds  8
+
+Exit status is 0 only for a final model response; configuration, provider,
+tool, and exhausted-round errors are non-zero. The command always runs Lisp in
+the project Docker container; it never invokes host Lisp.
+EOF
+}
+
+model=openai/gpt-4.1-mini
+max_rounds=8
+prompt=
+prompt_supplied=false
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage; exit 0 ;;
+    --model)
+      [ "$#" -ge 2 ] || { printf '%s\n' 'bin/chat: --model requires a value' >&2; exit 2; }
+      model=$2; shift 2 ;;
+    --max-rounds)
+      [ "$#" -ge 2 ] || { printf '%s\n' 'bin/chat: --max-rounds requires a value' >&2; exit 2; }
+      max_rounds=$2; shift 2 ;;
+    --prompt)
+      [ "$#" -ge 2 ] || { printf '%s\n' 'bin/chat: --prompt requires text' >&2; exit 2; }
+      prompt=$2; prompt_supplied=true; shift 2 ;;
+    *) printf 'bin/chat: unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$max_rounds" in
+  ''|*[!0-9]*) printf '%s\n' 'bin/chat: --max-rounds must be a positive integer' >&2; exit 2 ;;
+esac
+[ "$max_rounds" -gt 0 ] || { printf '%s\n' 'bin/chat: --max-rounds must be positive' >&2; exit 2; }
+
+if [ "$prompt_supplied" = false ]; then
+  [ ! -t 0 ] || { printf '%s\n' 'bin/chat: supply --prompt or pipe a prompt on stdin' >&2; exit 2; }
+  prompt=$(cat)
+fi
+[ -n "$prompt" ] || { printf '%s\n' 'bin/chat: prompt must not be empty' >&2; exit 2; }
+
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if [ -z "${OPENROUTER_API_KEY:-}" ] && [ ! -f "$repo_root/.env" ]; then
+  printf '%s\n' 'bin/chat: OPENROUTER_API_KEY must be exported or set in .env' >&2
+  exit 2
+fi
+
+export HARNESS_CHAT_PROMPT=$prompt
+export HARNESS_CHAT_MODEL=$model
+export HARNESS_CHAT_MAX_ROUNDS=$max_rounds
+exec "$repo_root/bin/container" \
+  --env HARNESS_CHAT_PROMPT \
+  --env HARNESS_CHAT_MODEL \
+  --env HARNESS_CHAT_MAX_ROUNDS \
+  --noinform \
+  --load scripts/chat.lisp

@@ -5,13 +5,30 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 image=${HARNESS_IMAGE:-self-improving-agent-harness:dev}
 network_option=
+forward_env_options=
 
 # Only repository-provided wrappers may disable networking. This is intentionally
 # a narrow switch instead of accepting arbitrary Docker options from the caller.
-if [ "${1:-}" = "--no-network" ]; then
-  network_option=--network=none
-  shift
-fi
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --no-network)
+      network_option=--network=none
+      shift
+      ;;
+    --env)
+      [ "$#" -ge 2 ] || { printf '%s\n' 'bin/container: --env requires a variable name' >&2; exit 2; }
+      case "$2" in
+        *[!A-Za-z0-9_]*|'')
+          printf '%s\n' 'bin/container: invalid environment variable name' >&2
+          exit 2
+          ;;
+      esac
+      forward_env_options="$forward_env_options --env $2"
+      shift 2
+      ;;
+    *) break ;;
+  esac
+done
 
 # Building is explicit and repeatable; source is never copied into the image.
 docker build --tag "$image" "$repo_root"
@@ -20,13 +37,13 @@ docker build --tag "$image" "$repo_root"
 # Docker's --network=none option before the image name.
 if [ -f "$repo_root/.env" ]; then
   if [ "${OPENROUTER_API_KEY+x}" = x ]; then
-    exec docker run ${network_option:-} --rm --init \
+    exec docker run ${network_option:-} ${forward_env_options:-} --rm --init \
       --env-file "$repo_root/.env" --env OPENROUTER_API_KEY \
       --volume "$repo_root:/workspace:ro" \
       --volume self-improving-agent-harness-cache:/cache \
       --workdir /workspace "$image" "$@"
   fi
-  exec docker run ${network_option:-} --rm --init \
+  exec docker run ${network_option:-} ${forward_env_options:-} --rm --init \
     --env-file "$repo_root/.env" \
     --volume "$repo_root:/workspace:ro" \
     --volume self-improving-agent-harness-cache:/cache \
@@ -34,13 +51,13 @@ if [ -f "$repo_root/.env" ]; then
 fi
 
 if [ "${OPENROUTER_API_KEY+x}" = x ]; then
-  exec docker run ${network_option:-} --rm --init --env OPENROUTER_API_KEY \
+  exec docker run ${network_option:-} ${forward_env_options:-} --rm --init --env OPENROUTER_API_KEY \
     --volume "$repo_root:/workspace:ro" \
     --volume self-improving-agent-harness-cache:/cache \
     --workdir /workspace "$image" "$@"
 fi
 
-exec docker run ${network_option:-} --rm --init \
+exec docker run ${network_option:-} ${forward_env_options:-} --rm --init \
   --volume "$repo_root:/workspace:ro" \
   --volume self-improving-agent-harness-cache:/cache \
   --workdir /workspace "$image" "$@"

@@ -81,6 +81,20 @@ make live-tool-smoke
 It makes a real tool-capable provider interaction and prints only the resolved
 model, tool invocation count, and final assistant text.
 
+## One-prompt chat CLI
+
+Use `bin/chat` for a one-prompt OpenRouter session that can call the harness
+`run_shell` tool inside its Docker container. It loops until the model returns
+a final response with no tool calls:
+
+```bash
+./bin/chat --model openai/gpt-4.1-mini \
+  --prompt "Use run_shell to inspect the repository, then summarize it."
+```
+
+Omit `--prompt` to read the prompt from stdin. Run `./bin/chat --help` for
+limits, defaults, requirements, and exit-status behavior.
+
 See [`docs/runtime.md`](docs/runtime.md) for runtime guarantees and [`docs/initial-architecture.md`](docs/initial-architecture.md) for design questions.
 
 ## Repository layout
