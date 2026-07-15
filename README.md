@@ -71,6 +71,16 @@ The wrapper forwards the variable to the container without printing it or
 copying it into the image. Tests run with `--network none`; `make live-smoke`
 has network access by design and makes one minimal provider request.
 
+To exercise the OpenRouter tool-call loop with a deterministic `echo` handler,
+run:
+
+```bash
+make live-tool-smoke
+```
+
+It makes a real tool-capable provider interaction and prints only the resolved
+model, tool invocation count, and final assistant text.
+
 See [`docs/runtime.md`](docs/runtime.md) for runtime guarantees and [`docs/initial-architecture.md`](docs/initial-architecture.md) for design questions.
 
 ## Repository layout

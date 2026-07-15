@@ -79,6 +79,21 @@
                  "request JSON serializes the system role")
     (ensure-true (search "\"max_tokens\":64" compact-json)
                  "request JSON uses OpenRouter's max_tokens field"))
+  (let* ((request (make-completion-request
+                   :model "test/model"
+                   :messages '((:role "user" :content "Use the echo tool."))
+                   :options
+                   '(:tools ((:type "function"
+                              :function (:name "echo"
+                                         :description "Returns its message."
+                                         :parameters (:type "object"
+                                                      :properties (:message (:type "string"))
+                                                      :required ("message"))))))))
+         (json (self-improving-agent-harness::openrouter-request-json request)))
+    (ensure-true (search "\"tools\"" json)
+                 "request JSON serializes tool definitions")
+    (ensure-true (search "\"name\":\"echo\"" json)
+                 "request JSON serializes the declared tool name"))
   (ensure-equal "{\"id\":\"gen-123\"}"
                 (self-improving-agent-harness::openrouter-response-body-string
                  #(123 34 105 100 34 58 34 103 101 110 45 49 50 51 34 125))

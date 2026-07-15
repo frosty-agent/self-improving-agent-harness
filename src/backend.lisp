@@ -155,14 +155,25 @@ the transport layer owns conversion to OpenRouter's JSON field names."
                                         :arguments (getf tool-call :arguments))))
                 (completion-response-tool-calls response))))
 
+(defun openrouter-tool-arguments (tool-call)
+  (handler-case
+      (yason:parse (getf tool-call :arguments))
+    (error ()
+      (error "Tool ~S supplied invalid JSON arguments." (getf tool-call :name)))))
+
 (defun openrouter-tool-result-message (tool-call handlers)
   (let ((handler (openrouter-tool-handler handlers (getf tool-call :name))))
     (unless handler
       (error "No handler is registered for tool ~S." (getf tool-call :name)))
-    (list :role "tool"
-          :tool-call-id (getf tool-call :id)
-          :content (openrouter-tool-result-content
-                    (funcall handler (yason:parse (getf tool-call :arguments)))))))
+    (let* ((arguments (openrouter-tool-arguments tool-call))
+           (result
+             (handler-case
+                 (funcall handler arguments)
+               (error ()
+                 (error "Tool handler ~S failed." (getf tool-call :name))))))
+      (list :role "tool"
+            :tool-call-id (getf tool-call :id)
+            :content (openrouter-tool-result-content result)))))
 
 (defun run-tool-loop (backend request handlers &key (max-rounds 8))
   "Run REQUEST through BACKEND, executing registered tool calls until completion."

@@ -9,6 +9,14 @@
   (or (pop (scripted-backend-responses backend))
       (error "Test backend exhausted its scripted responses.")))
 
+(defun ensure-error-containing (thunk expected description)
+  (handler-case
+      (progn
+        (funcall thunk)
+        (error "Test failed: ~A did not signal an error" description))
+    (error (condition)
+      (ensure-true (search expected (princ-to-string condition)) description))))
+
 (defun run-tool-loop-tests ()
   (let* ((tool-response
            (make-completion-response
@@ -52,5 +60,45 @@
                     "tool result references the matching tool call")
       (ensure-equal "echoed: hello" (getf tool-message :content)
                     "tool result contains handler output")))
+  (ensure-error-containing
+   (lambda ()
+     (self-improving-agent-harness:run-tool-loop
+      (make-instance 'scripted-backend
+                     :name "scripted"
+                     :responses (list (make-completion-response
+                                       :tool-calls '((:id "call-unknown" :type "function"
+                                                      :name "missing" :arguments "{}")))))
+      (make-completion-request :model "test/model" :messages '())
+      '()))
+   "No handler is registered for tool"
+   "unknown tool calls produce an explicit outcome")
+  (ensure-error-containing
+   (lambda ()
+     (self-improving-agent-harness:run-tool-loop
+      (make-instance 'scripted-backend
+                     :name "scripted"
+                     :responses (list (make-completion-response
+                                       :tool-calls '((:id "call-invalid" :type "function"
+                                                      :name "echo" :arguments "{not-json")))))
+      (make-completion-request :model "test/model" :messages '())
+      `(("echo" . ,(lambda (arguments) arguments)))))
+   "invalid JSON arguments"
+   "malformed tool arguments produce a redacted outcome")
+  (handler-case
+      (self-improving-agent-harness:run-tool-loop
+       (make-instance 'scripted-backend
+                      :name "scripted"
+                      :responses (list (make-completion-response
+                                        :tool-calls '((:id "call-failure" :type "function"
+                                                       :name "echo" :arguments "{}")))))
+       (make-completion-request :model "test/model" :messages '())
+       `(("echo" . ,(lambda (arguments)
+                       (declare (ignore arguments))
+                       (error "private handler detail")))))
+    (error (condition)
+      (ensure-true (search "Tool handler \"echo\" failed" (princ-to-string condition))
+                   "handler failures produce an explicit outcome")
+      (ensure-true (not (search "private handler detail" (princ-to-string condition)))
+                   "handler failure details are redacted")))
   (format t "Tool-loop tests passed.~%")
   t)
