@@ -31,5 +31,6 @@
       (ensure-true (not (getf summary :api-key-present))
                      "harness entry point does not expose API-key material"))
       (run-openrouter-adapter-tests)
+      (run-tool-loop-tests)
       (format t "Self-improving-agent-harness smoke tests passed.~%")
       t))

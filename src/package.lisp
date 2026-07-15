@@ -4,6 +4,7 @@
    #:backend
    #:backend-name
    #:complete
+   #:run-tool-loop
    #:completion-request
    #:make-completion-request
    #:completion-request-model

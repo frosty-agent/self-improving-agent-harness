@@ -135,6 +135,59 @@ the transport layer owns conversion to OpenRouter's JSON field names."
       (map '(vector (unsigned-byte 8)) #'identity body)
       :external-format :utf-8))))
 
+(defun openrouter-tool-handler (handlers name)
+  (cdr (assoc name handlers :test #'string=)))
+
+(defun openrouter-tool-result-content (result)
+  (if (stringp result)
+      result
+      (with-output-to-string (stream)
+        (yason:encode result stream))))
+
+(defun openrouter-assistant-tool-call-message (response)
+  (list :role "assistant"
+        :content (completion-response-text response)
+        :tool-calls
+        (mapcar (lambda (tool-call)
+                  (list :id (getf tool-call :id)
+                        :type (getf tool-call :type)
+                        :function (list :name (getf tool-call :name)
+                                        :arguments (getf tool-call :arguments))))
+                (completion-response-tool-calls response))))
+
+(defun openrouter-tool-result-message (tool-call handlers)
+  (let ((handler (openrouter-tool-handler handlers (getf tool-call :name))))
+    (unless handler
+      (error "No handler is registered for tool ~S." (getf tool-call :name)))
+    (list :role "tool"
+          :tool-call-id (getf tool-call :id)
+          :content (openrouter-tool-result-content
+                    (funcall handler (yason:parse (getf tool-call :arguments)))))))
+
+(defun run-tool-loop (backend request handlers &key (max-rounds 8))
+  "Run REQUEST through BACKEND, executing registered tool calls until completion."
+  (labels ((run-next-round (current-request round)
+             (let ((response (complete backend current-request)))
+               (if (null (completion-response-tool-calls response))
+                   response
+                   (progn
+                     (when (>= round max-rounds)
+                       (error "Tool-call loop exceeded its ~D round limit." max-rounds))
+                     (let* ((tool-calls (completion-response-tool-calls response))
+                            (next-messages
+                              (append (completion-request-messages current-request)
+                                      (list (openrouter-assistant-tool-call-message response))
+                                      (mapcar (lambda (tool-call)
+                                                (openrouter-tool-result-message tool-call handlers))
+                                              tool-calls)))
+                            (next-request
+                              (make-completion-request
+                               :model (completion-request-model current-request)
+                               :messages next-messages
+                               :options (completion-request-options current-request))))
+                       (run-next-round next-request (1+ round))))))))
+    (run-next-round request 0)))
+
 (defmethod complete ((backend openrouter-backend) request)
   (let ((api-key (openrouter-backend-api-key backend)))
     (unless (and (stringp api-key) (plusp (length api-key)))

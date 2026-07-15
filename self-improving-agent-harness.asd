@@ -14,7 +14,8 @@
   :serial t
   :components ((:file "tests/package")
                (:file "tests/backend")
-               (:file "tests/openrouter-adapter"))
+               (:file "tests/openrouter-adapter")
+               (:file "tests/tool-loop"))
   :perform (test-op (operation component)
              (declare (ignore operation component))
              (uiop:symbol-call :self-improving-agent-harness/tests :run-tests)))
