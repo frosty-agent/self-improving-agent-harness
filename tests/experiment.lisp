@@ -25,17 +25,19 @@
   (ensure-true
    (self-improving-agent-harness::find-experiment "dsl-offline-example")
    "defexperiment validates and registers a complete declaration")
-  (handler-case
-      (progn
+  (let ((declaration-rejected-p nil))
+    (handler-case
         (eval
          '(self-improving-agent-harness:defexperiment incomplete-example
             :id "incomplete-example"
             :task-fixture '(:kind :inline :input "missing fields")))
-        (error "Test failed: incomplete DSL declarations must fail before execution"))
-    (error ()
-      (ensure-true
-       (null (self-improving-agent-harness::find-experiment "incomplete-example"))
-       "invalid DSL declarations do not register or execute")))
+      (error ()
+        (setf declaration-rejected-p t)))
+    (ensure-true declaration-rejected-p
+                 "incomplete DSL declarations fail before execution")
+    (ensure-true
+     (null (self-improving-agent-harness::find-experiment "incomplete-example"))
+     "invalid DSL declarations do not register or execute"))
   (let* ((experiment (self-improving-agent-harness::find-experiment "offline-summary"))
          (root (self-improving-agent-harness::materialize-candidate
                 experiment :id "offline-summary/root" :configuration '(:strategy :baseline)))
