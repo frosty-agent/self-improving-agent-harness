@@ -111,7 +111,8 @@ redacted record containing baseline/candidate evaluator evidence, actual
 provider-call/token/cost accounting, outcomes, configuration hashes and lineage,
 and retention rationale. Retention is replayed solely from persisted evaluator
 verdicts: the scripted regression is rejected, without candidate self-assessment
-or self-promotion.
+or self-promotion. See [how the self-modifying harness works](docs/self-modifying-harness.md)
+for the current modification mechanisms, evaluation independence, and limits.
 
 ## Docker-first runtime
 
