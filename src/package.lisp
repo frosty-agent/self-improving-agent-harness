@@ -79,4 +79,9 @@
    #:normalize-command-check
    #:run-baseline-fixture
    #:run-fixed-baseline
+   #:+run-report-schema-version+
+   #:redact-report-data
+   #:render-run-report-html
+   #:write-run-report-artifacts
+   #:write-scripted-baseline-report
    #:run-harness))

@@ -70,6 +70,25 @@ acceptance command failed), or `:execution-failure` (backend/tool-loop,
 budget, or evaluator execution failed).  See
 [`docs/baseline-fixture.md`](docs/baseline-fixture.md) for the rerun contract.
 
+## Auditable run reports
+
+The deterministic scripted baseline can persist a versioned run trace without
+provider credentials or network access:
+
+```bash
+sg docker -c 'make report'
+```
+
+It writes the paired artifacts to the predictable location
+`reports/baseline-answer-v1/run.json` and `reports/baseline-answer-v1/run.html`.
+Both artifacts are generated from the same redacted in-memory run record.  The
+report records the task and criteria, candidate lineage/configuration, available
+and invoked model histories, tool metadata, per-invocation usage and actual
+cost, evaluator evidence, outcome, and final decision.  The HTML is
+self-contained and places selected/available models before invoked attempts;
+invocations are rendered as a table. Credentials and raw tool/provider output
+are excluded while input/output token and actual cost accounting is retained.
+
 ## Docker-first runtime
 
 **Docker is the required Common Lisp runtime.** Do not install or invoke a host Lisp implementation for project code, tests, or harness runs. The project image provides SBCL and ASDF; the repository source is mounted read-only by default, and compiled artifacts live in a named Docker volume. `bin/chat` deliberately mounts its workspace read-write so its `run_shell` tool can make requested workspace changes.

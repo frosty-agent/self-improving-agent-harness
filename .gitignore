@@ -14,6 +14,9 @@
 !.env.example
 secrets/
 
+# Generated offline run-report artifacts
+reports/
+
 # Editor and OS artifacts
 .DS_Store
 *~

@@ -37,5 +37,6 @@
       (run-logging-tests)
       (run-experiment-model-tests)
       (run-baseline-tests)
+      (run-report-tests)
       (format t "Self-improving-agent-harness smoke tests passed.~%")
       t))
