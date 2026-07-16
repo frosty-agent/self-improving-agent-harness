@@ -59,6 +59,10 @@
    #:canonical-configuration
    #:stable-configuration-hash
    #:+configuration-candidate-dimensions+
+   #:parse-source-mutation
+   #:validate-source-mutation
+   #:apply-source-mutation
+   #:run-source-mutation-prototype
    #:run-record
    #:make-run-record
    #:run-record-id
