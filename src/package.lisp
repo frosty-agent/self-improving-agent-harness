@@ -9,6 +9,9 @@
    #:log-interaction
    #:emit-chat-event
    #:run-shell-tool
+   #:*run-shell-after-hooks*
+   #:report-run-shell-timing
+   #:run-run-shell-after-hooks
    #:reload-harness-tool
    #:chat-session
    #:make-chat-session
@@ -42,6 +45,11 @@
    #:run-harness
    ;; chat CLI (reloadable via reload_harness)
    #:+chat-input-prompt+
+   #:+chat-prompt-separator+
+   #:*pending-chat-prompt-close*
+   #:maybe-write-chat-prompt-closing
+   #:read-chat-input-line
+   #:write-chat-prompt-closing
    #:write-chat-prompt
    #:run-interactive
    #:run-one-shot
