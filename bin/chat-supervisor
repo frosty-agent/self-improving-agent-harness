@@ -7,6 +7,7 @@ raw diffs/logs, command output, credentials, or provider/tool output.
 import argparse
 import html
 import json
+import math
 import os
 import re
 import select
@@ -68,30 +69,62 @@ def redacted_report_text(value):
 
 
 def sanitized_accounting(value):
-    """Allow-list the Lisp accounting trace; never persist provider/tool payloads."""
-    if not isinstance(value, dict) or not isinstance(value.get("provider_call_count"), int):
+    """Validate and allow-list accounting received from the child process."""
+    unavailable = {"state": "unavailable", "reason": "invalid-authoritative-accounting"}
+    if (not isinstance(value, dict) or isinstance(value.get("provider_call_count"), bool)
+            or not isinstance(value.get("provider_call_count"), int)
+            or value["provider_call_count"] < 0):
         return {"state": "unavailable", "reason": "authoritative-accounting-not-supplied"}
-    scalar = (str, int, float, bool, type(None))
-    invocation_keys = ("model", "provider", "request_id_present", "outcome", "input_tokens",
-                       "input_tokens_state", "input_tokens_reason", "output_tokens",
-                       "output_tokens_state", "output_tokens_reason", "total_tokens",
-                       "total_tokens_state", "total_tokens_reason", "cost_usd",
-                       "cost_usd_state", "cost_usd_reason")
-    aggregate_keys = invocation_keys[4:]
-    invocations = value.get("invocations")
-    aggregate = value.get("aggregate")
-    if not isinstance(invocations, list) or not isinstance(aggregate, dict):
-        return {"state": "unavailable", "reason": "invalid-authoritative-accounting"}
+
+    def numeric(field):
+        return (isinstance(field, (int, float)) and not isinstance(field, bool)
+                and math.isfinite(field) and field >= 0)
+
+    def label(field):
+        # Provider-returned labels are untrusted: retain only compact identifiers,
+        # never arbitrary strings that could contain request/provider data.
+        return (isinstance(field, str) and len(field) <= 160
+                and re.fullmatch(r"[A-Za-z0-9._/-]+", field))
+
+    def reason(field):
+        return (isinstance(field, str) and len(field) <= 160
+                and re.fullmatch(r"[a-z0-9-]+", field))
+
+    def clean_measurement(source, key):
+        state, value_key, reason_key = key + "_state", key, key + "_reason"
+        state_value, raw_value, raw_reason = source.get(state), source.get(value_key), source.get(reason_key)
+        if state_value == "actual" and numeric(raw_value) and raw_reason is None:
+            return {value_key: raw_value, state: "actual", reason_key: None}
+        if state_value == "unavailable" and raw_value == "unavailable" and reason(raw_reason):
+            return {value_key: "unavailable", state: "unavailable", reason_key: raw_reason}
+        return None
+
+    invocations, aggregate = value.get("invocations"), value.get("aggregate")
+    if (not isinstance(invocations, list) or len(invocations) != value["provider_call_count"]
+            or not isinstance(aggregate, dict)):
+        return unavailable
     clean_invocations = []
     for invocation in invocations:
-        if not isinstance(invocation, dict):
-            return {"state": "unavailable", "reason": "invalid-authoritative-accounting"}
-        clean_invocations.append({key: invocation.get(key) for key in invocation_keys
-                                  if isinstance(invocation.get(key), scalar)})
+        if (not isinstance(invocation, dict) or not label(invocation.get("model"))
+                or not label(invocation.get("provider"))
+                or not isinstance(invocation.get("request_id_present"), bool)
+                or invocation.get("outcome") != "completed"):
+            return unavailable
+        clean = {key: invocation[key] for key in ("model", "provider", "request_id_present", "outcome")}
+        for key in ("input_tokens", "output_tokens", "total_tokens", "cost_usd"):
+            measurement = clean_measurement(invocation, key)
+            if measurement is None:
+                return unavailable
+            clean.update(measurement)
+        clean_invocations.append(clean)
+    clean_aggregate = {}
+    for key in ("input_tokens", "output_tokens", "total_tokens", "cost_usd"):
+        measurement = clean_measurement(aggregate, key)
+        if measurement is None:
+            return unavailable
+        clean_aggregate.update(measurement)
     return {"state": "actual", "provider_call_count": value["provider_call_count"],
-            "invocations": clean_invocations,
-            "aggregate": {key: aggregate.get(key) for key in aggregate_keys
-                          if isinstance(aggregate.get(key), scalar)}}
+            "invocations": clean_invocations, "aggregate": clean_aggregate}
 
 
 
@@ -218,11 +251,12 @@ def sanitized_checkpoint(worktree, verification_command, accounting=None):
 
 
 class ChatProcess:
-    def __init__(self, arguments, worktree, session_id):
+    def __init__(self, arguments, worktree, session_id, timeout_seconds):
         self.process = subprocess.Popen(arguments, cwd=worktree, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, close_fds=True, text=False)
         self.stdin, self.stdout, self.stderr = self.process.stdin.fileno(), self.process.stdout.fileno(), self.process.stderr.fileno()
-        self.session_id, self.stderr_buffer, self.stdout_buffer, self.events = session_id, b"", b"", []
+        self.session_id, self.timeout_seconds = session_id, timeout_seconds
+        self.stderr_buffer, self.stdout_buffer, self.events = b"", b"", []
     def close(self):
         for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
             if stream and not stream.closed: stream.close()
@@ -244,7 +278,7 @@ class ChatProcess:
             elif fd == self.stdout: self.stdout_buffer += chunk
             else: self._consume_stderr(chunk)
     def wait_for_event(self, names, start=0):
-        names = {names} if isinstance(names, str) else set(names); deadline = time.monotonic() + TIMEOUT_SECONDS; index = start
+        names = {names} if isinstance(names, str) else set(names); deadline = time.monotonic() + self.timeout_seconds; index = start
         while time.monotonic() < deadline:
             while index < len(self.events):
                 event = self.events[index]; index += 1
@@ -286,10 +320,13 @@ def main():
     p.add_argument("--worktree"); p.add_argument("--create-worktree", action="store_true")
     p.add_argument("--repo"); p.add_argument("--base-ref"); p.add_argument("--run-id")
     p.add_argument("--worktree-parent"); p.add_argument("--report-dir")
-    p.add_argument("--session-id", required=True); p.add_argument("--model", default="unavailable")
+    p.add_argument("--session-id", required=True); p.add_argument("--model", default="openai/gpt-4.1-mini")
+    p.add_argument("--max-rounds", type=int, default=8)
+    p.add_argument("--turn-timeout-seconds", type=int, default=TIMEOUT_SECONDS)
     p.add_argument("--verify-command", required=True); p.add_argument("--decision", choices=("retain", "reject"))
     p.add_argument("--fake", action="store_true"); args = p.parse_args()
     if not args.session_id or not shlex.split(args.verify_command): p.error("session ID and verification command must not be empty")
+    if args.max_rounds <= 0 or args.turn_timeout_seconds <= 0: p.error("max rounds and turn timeout must be positive")
     if not args.report_dir: p.error("--report-dir is required for durable reports")
     if args.create_worktree:
         if not all((args.repo, args.base_ref, args.run_id, args.worktree_parent, args.report_dir)): p.error("creation requires repo, base-ref, run-id, worktree-parent, and report-dir")
@@ -302,9 +339,10 @@ def main():
     base_commit = base_commit or git(worktree, ["rev-parse", "HEAD"]).stdout.strip()
     report = {"schema_version": REPORT_SCHEMA_VERSION, "task": "unavailable", "session": {"id": args.session_id, "worktree": str(worktree), "branch": branch, "base_commit": base_commit, "owned": owned}, "model_invoked": redacted_report_text(args.model), "accounting": {"state": "unavailable", "reason": "no-successful-provider-turn"}, "tool_metadata": "unavailable", "feedback": [], "turns": [], "final_decision": args.decision or "unresolved", "merged": False, "deleted": False}
     emit({"type":"session-started", **report["session"]})
-    chat = [str(worktree / "bin" / "chat"), "--supervised", "--session-id", args.session_id]
+    chat = [str(worktree / "bin" / "chat"), "--supervised", "--session-id", args.session_id,
+            "--model", args.model, "--max-rounds", str(args.max_rounds)]
     if args.fake: chat.append("--fake")
-    child = ChatProcess(chat, str(worktree), args.session_id); pending_feedback = None; turn = 0
+    child = ChatProcess(chat, str(worktree), args.session_id, args.turn_timeout_seconds); pending_feedback = None; turn = 0
     try:
         child.wait_for_event("session-started")
         for raw in sys.stdin:

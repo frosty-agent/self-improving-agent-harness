@@ -161,6 +161,22 @@ make live-tool-smoke
 It makes a real tool-capable provider interaction and prints only the resolved
 model, tool invocation count, and final assistant text.
 
+For final **opt-in, potentially billable** evidence that the JSONL supervisor
+can create an owned worktree and observe a real `run_shell` mutation, run this
+only after review:
+
+```bash
+export OPENROUTER_API_KEY=... # do not paste or commit the value
+make live-chat-supervisor-tool-smoke
+```
+
+It exits with code `77` and a clear skip message if the key is not exported.
+It is intentionally excluded from `make test`: it is final human/supervisor
+verification, not ordinary deterministic coverage. The smoke clones the current
+tested branch into a disposable primary checkout, asks the supervisor to make
+its own child worktree, verifies the child diff and pinned parent-side test
+command, and removes all temporary artifacts afterwards.
+
 ## Chat CLI
 
 `bin/chat` runs the harness `run_shell` tool inside its Docker container. It has

@@ -8,3 +8,4 @@
 (uiop:run-program '("/bin/sh" "tests/chat-supervisor-empty-turn.sh") :output t :error-output t)
 (uiop:run-program '("/bin/sh" "tests/chat-supervisor-failed-turn.sh") :output t :error-output t)
 (uiop:run-program '("/bin/sh" "tests/chat-supervisor-lifecycle.sh") :output t :error-output t)
+(uiop:run-program '("/bin/sh" "tests/chat-supervisor-live-tool-smoke-test.sh") :output t :error-output t)

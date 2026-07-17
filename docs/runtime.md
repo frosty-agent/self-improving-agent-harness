@@ -17,6 +17,10 @@ Compiled FASLs and ASDF cache data are written to the Docker named volume `self-
 - `make repl` / `./bin/container --noinform`: build the image and start an interactive SBCL session.
 - `make live-smoke`: make one minimal live OpenRouter chat-completions request.
 - `make live-tool-smoke`: make a live tool-capable OpenRouter request using the deterministic `echo` handler.
+- `make live-chat-supervisor-tool-smoke`: opt-in, potentially billable final
+  human/supervisor verification for the owned-worktree chat-supervisor path. It
+  exits `77` with an explicit skip message when `OPENROUTER_API_KEY` is absent;
+  it is deliberately not run by `make test`.
 - `./bin/chat [--model MODEL] [--max-rounds N] [--session-id ID] [--prompt TEXT]`: with `--prompt`, run one user prompt through the OpenRouter tool loop. With no prompt and terminal stdin/stdout, start the persistent interactive chat session; `/exit`, `/quit`, Ctrl-C, or EOF ends it. Piped stdin is a documented one-shot prompt, never an interactive transcript. The command completes each turn only after the model returns a final response with no tool calls. Its workspace mount is read-write for `run_shell`; the caller is responsible for reviewing and committing any source changes it makes.
 - `./bin/chat-supervisor --worktree PATH --session-id ID --verify-command COMMAND`: a narrow JSONL parent adapter. It gives `bin/chat --supervised` separate ordinary pipes; that path uses Docker stdin-only `-i`, never a TTY, preserving separate child stdout/stderr while allowing multiple explicit parent turns. Normal terminal chat still uses `-it`, and piped one-shot behavior is unchanged. It is host-side orchestration; chat itself still runs in Docker. `--fake` selects the deterministic no-provider child used by offline tests.
 
@@ -25,6 +29,15 @@ The wrapper rebuilds before every command, relying on Docker layer caching when 
 ## Credential handling
 
 `OPENROUTER_API_KEY` is runtime configuration only. `bin/container` optionally forwards it from an untracked repository `.env` file or an explicitly exported host environment variable. It does not echo the value, write it into a trace, or bake it into the image.
+
+The supervisor live smoke requires an explicitly exported key (it does not load
+one from `.env`) and creates a temporary independent clone of the tested branch.
+The supervisor then creates its owned child worktree below a temporary parent,
+runs one bounded tool-capable session, and the parent requests the pinned
+`sg docker -c 'make test'` verification command. It checks only sanitized
+provider accounting, Git state, and report consistency; temporary clones,
+worktrees, JSONL, and reports are removed on exit. Run it only after review as
+final evidence, never as normal CI coverage.
 
 `.dockerignore` excludes `.env`, Git metadata, and local artifacts from the Docker build context. It is still the caller's responsibility to never pass credentials on a command line or commit them.
 

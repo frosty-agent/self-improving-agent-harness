@@ -19,7 +19,8 @@ printf '%s\n' \
   ./bin/chat-supervisor --create-worktree --repo "$PWD" --base-ref HEAD \
     --run-id issue-16-a --worktree-parent /home/ubuntu/.agent-worktrees \
     --report-dir reports/chat-session-issue-16-a --session-id issue-16-a \
-    --model openai/gpt-4.1-mini --verify-command "sg docker -c 'make test'"
+    --model openai/gpt-4.1-mini --max-rounds 4 --turn-timeout-seconds 120 \
+    --verify-command "sg docker -c 'make test'"
 ```
 
 A safe pre-created worktree may be passed with `--worktree`, `--worktree-parent`
@@ -33,6 +34,13 @@ parent lock makes a used run ID unavailable for reuse. Creation rejects dirty
 starts, primary/non-primary repository misuse, invalid bases, duplicate IDs,
 and target paths outside the configured parent. There is no operation or flag
 for merge, worktree deletion, branch deletion, or automatic promotion.
+
+`--model` and `--max-rounds` are forwarded to the child `bin/chat`; the defaults
+are the exact model ID `openai/gpt-4.1-mini` and `8` rounds. The positive
+`--turn-timeout-seconds` bound (default `300`) limits each supervisor wait for a
+worker event. A caller that needs final live evidence should use
+`make live-chat-supervisor-tool-smoke`, not add a provider request to normal
+tests.
 
 ## Input JSONL
 

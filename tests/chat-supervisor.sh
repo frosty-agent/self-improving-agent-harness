@@ -27,9 +27,40 @@ if ! printf '%s\n' \
 fi
 
 # Use Python only for JSON parsing and exact field assertions; no provider is used.
-python3 - "$output" <<'PY'
+python3 - "$output" "$repo_root/bin/chat-supervisor" <<'PY'
+import importlib.machinery
+import importlib.util
 import json
 import sys
+
+loader = importlib.machinery.SourceFileLoader("chat_supervisor", sys.argv[2])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+chat_supervisor = importlib.util.module_from_spec(spec)
+loader.exec_module(chat_supervisor)
+
+# Accounting comes from a child process. Its allow-list must additionally reject
+# arbitrary provider/request-like labels and non-numeric cost fields.
+def actual_measurements():
+    return {
+        "input_tokens": 0, "input_tokens_state": "actual", "input_tokens_reason": None,
+        "output_tokens": 0, "output_tokens_state": "actual", "output_tokens_reason": None,
+        "total_tokens": 0, "total_tokens_state": "actual", "total_tokens_reason": None,
+        "cost_usd": 0, "cost_usd_state": "actual", "cost_usd_reason": None,
+    }
+
+valid_invocation = {
+    "model": "openai/gpt-4.1-mini", "provider": "openrouter",
+    "request_id_present": True, "outcome": "completed", **actual_measurements(),
+}
+valid = {"provider_call_count": 1, "invocations": [valid_invocation],
+         "aggregate": actual_measurements()}
+assert chat_supervisor.sanitized_accounting(valid)["aggregate"]["cost_usd"] == 0
+
+unsafe_secret = {**valid, "invocations": [{**valid_invocation,
+                                             "model": "provider secret: sk-test-123"}]}
+assert chat_supervisor.sanitized_accounting(unsafe_secret)["state"] == "unavailable", unsafe_secret
+unsafe_cost = {**valid, "aggregate": {**valid["aggregate"], "cost_usd": "0.0025"}}
+assert chat_supervisor.sanitized_accounting(unsafe_cost)["state"] == "unavailable", unsafe_cost
 
 records = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
 events = [record for record in records if record.get("type") == "event"]
