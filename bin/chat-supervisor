@@ -126,14 +126,18 @@ class ChatProcess:
                 else:
                     self._consume_stderr(chunk)
 
-    def wait_for_event(self, name, start_index=0):
+    def wait_for_event(self, names, start_index=0):
+        if isinstance(names, str):
+            names = {names}
+        else:
+            names = set(names)
         deadline = time.monotonic() + TIMEOUT_SECONDS
         index = start_index
         while time.monotonic() < deadline:
             while index < len(self.events):
                 event = self.events[index]
                 index += 1
-                if event.get("event") == name:
+                if event.get("event") in names:
                     return event
             self._read_available(max(0, min(0.2, deadline - time.monotonic())))
             if self.process.poll() is not None and self.stdout is None and self.stderr is None:
@@ -144,7 +148,12 @@ class ChatProcess:
         self.stdout_buffer = b""
         event_index = len(self.events)
         os.write(self.stdin, text.encode("utf-8") + b"\n")
-        event = self.wait_for_event("turn-completed", event_index)
+        # A submitted input is terminally resolved by one of these events. In
+        # particular, empty and failed turns intentionally do not have an
+        # assistant stdout payload, so waiting only for turn-completed would
+        # stall the whole JSONL session until its global timeout.
+        event = self.wait_for_event(
+            ("turn-completed", "turn-empty", "turn-failed"), event_index)
         return event, self.stdout_buffer.decode("utf-8", errors="replace")
 
     def exit(self):
