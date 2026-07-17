@@ -37,14 +37,20 @@ assert [record["text"] for record in assistant] == ["fake assistant turn 1", "fa
 assert [record["turn"] for record in assistant] == [1, 2], records
 assert any(record.get("event") == "session-started" for record in events), records
 assert [record["event"] for record in events if record.get("event") == "turn-completed"] == ["turn-completed", "turn-completed"], records
+assert [record["assistant_bytes"] for record in events if record.get("event") == "turn-completed"] == [
+    len("fake assistant turn 1".encode("utf-8")), len("fake assistant turn 2".encode("utf-8"))], records
 assert any(record.get("event") == "session-exited" and record.get("reason") == "local-exit" for record in events), records
 assert len(checkpoint) == 1, records
 result = checkpoint[0]
-# The Docker test mount intentionally excludes the parent worktree's gitdir;
-# assert that the adapter returns a sanitized git failure rather than paths/error text.
-assert result["git"]["status"] == "unavailable", result
-assert result["git"]["diff_check"] == "failed", result
-assert result["git"]["diff_check_exit_code"] == 128, result
+# The test suite may run inside a source-only Docker mount or through the
+# host-side supervisor. Assert only the documented sanitized alternatives.
+assert result["git"]["status"] in ("clean", "changes-present", "unavailable"), result
+if result["git"]["status"] == "unavailable":
+    assert result["git"]["diff_check"] == "failed", result
+    assert result["git"]["diff_check_exit_code"] == 128, result
+else:
+    assert result["git"]["diff_check"] == "passed", result
+    assert result["git"]["diff_check_exit_code"] == 0, result
 assert result["verification"] == {"command": "/bin/true", "status": "passed", "exit_code": 0}, result
 assert result["provider_usage"] == "unavailable", result
 assert "chat.log" not in "\n".join(map(json.dumps, records)), records

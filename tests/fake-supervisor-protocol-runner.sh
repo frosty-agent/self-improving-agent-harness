@@ -3,7 +3,11 @@
 set -eu
 
 event() {
-  printf '{"event":"%s","session_id":"%s","turn":%s}\n' "$1" "$HARNESS_CHAT_SESSION_ID" "$2" >&2
+  if [ "$1" = turn-completed ]; then
+    printf '{"event":"%s","session_id":"%s","turn":%s,"assistant_bytes":10}\n' "$1" "$HARNESS_CHAT_SESSION_ID" "$2" >&2
+  else
+    printf '{"event":"%s","session_id":"%s","turn":%s}\n' "$1" "$HARNESS_CHAT_SESSION_ID" "$2" >&2
+  fi
 }
 
 printf '{"event":"session-started","session_id":"%s"}\n' "$HARNESS_CHAT_SESSION_ID" >&2
@@ -20,10 +24,15 @@ while IFS= read -r input; do
       if [ "$turn" -eq 1 ]; then
         event turn-failed "$turn"
       else
-        # Two writes model partial assistant output; the delimiter follows both.
-        printf 'two\n'
-        printf 'line'
+        # Simulate cross-pipe delivery: the completion delimiter can arrive at
+        # the parent before the stdout pipe exposes the already-completed turn.
         event turn-completed "$turn"
+        # This intentional fixture delay creates the observed cross-pipe
+        # arrival order; the production protocol must use assistant_bytes,
+        # never a delay or a zero-time readiness guess.
+        sleep 1
+        printf 'two\n'
+        printf 'πline'
       fi
       ;;
   esac

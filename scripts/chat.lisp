@@ -100,19 +100,28 @@
                            (let ((response (self-improving-agent-harness:chat-session-turn
                                             session input)))
                              (if supervised-p
-                                 (progn
-                                   (format t "~A"
-                                           (self-improving-agent-harness:completion-response-text response))
-                                   ;; turn-completed delimits all preceding assistant bytes.
-                                   (finish-output))
+                                 (let ((assistant-text
+                                         (self-improving-agent-harness:completion-response-text response)))
+                                   (format t "~A" assistant-text)
+                                   (finish-output)
+                                   ;; stdout and stderr are independent pipes. The event's
+                                   ;; UTF-8 byte count, rather than flush ordering, frames
+                                   ;; this raw assistant turn for the supervisor.
+                                   (self-improving-agent-harness:emit-chat-event
+                                    "turn-completed"
+                                    :model (self-improving-agent-harness:completion-response-model response)
+                                    :assistant-bytes
+                                    (length (sb-ext:string-to-octets assistant-text
+                                                                     :external-format :utf-8))))
                                  (progn
                                    (format t "~A~%"
                                            (self-improving-agent-harness:completion-response-text response))
                                    (format *error-output* "OUTCOME final-response model=~A~%"
                                            (self-improving-agent-harness:completion-response-model response))))
-                             (self-improving-agent-harness:emit-chat-event
-                              "turn-completed"
-                              :model (self-improving-agent-harness:completion-response-model response)))
+                              (unless supervised-p
+                                (self-improving-agent-harness:emit-chat-event
+                                 "turn-completed"
+                                 :model (self-improving-agent-harness:completion-response-model response))))
                          (error (condition)
                            ;; The condition is already redacted by the tool loop where needed.
                            (self-improving-agent-harness:note-chat-session-failure session)

@@ -105,26 +105,21 @@ class ChatProcess:
                 self.stdout_buffer += chunk
             else:
                 self._consume_stderr(chunk)
-        # A completed turn writes and flushes stdout before its stderr delimiter.
-        # Drain every immediately-ready byte before accepting that delimiter.
-        while True:
-            descriptors = [fd for fd in (self.stdout, self.stderr) if fd is not None]
-            if not descriptors:
-                return
-            ready, _, _ = select.select(descriptors, [], [], 0)
-            if not ready:
-                return
-            for descriptor in ready:
-                chunk = os.read(descriptor, 4096)
-                if not chunk:
-                    if descriptor == self.stdout:
-                        self.stdout = None
-                    else:
-                        self.stderr = None
-                elif descriptor == self.stdout:
-                    self.stdout_buffer += chunk
-                else:
-                    self._consume_stderr(chunk)
+
+    def read_stdout_through(self, expected_bytes):
+        """Block until the completed turn's exact raw UTF-8 byte count arrives."""
+        if not isinstance(expected_bytes, int) or isinstance(expected_bytes, bool) or expected_bytes < 0:
+            raise RuntimeError("turn-completed event has invalid assistant_bytes")
+        deadline = time.monotonic() + TIMEOUT_SECONDS
+        while len(self.stdout_buffer) < expected_bytes:
+            if self.stdout is None:
+                raise RuntimeError("chat child closed stdout before completed assistant bytes")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError("timed out waiting for completed assistant bytes")
+            self._read_available(min(0.2, remaining))
+        if len(self.stdout_buffer) != expected_bytes:
+            raise RuntimeError("chat child wrote more assistant bytes than turn-completed declared")
 
     def wait_for_event(self, names, start_index=0):
         if isinstance(names, str):
@@ -154,6 +149,8 @@ class ChatProcess:
         # stall the whole JSONL session until its global timeout.
         event = self.wait_for_event(
             ("turn-completed", "turn-empty", "turn-failed"), event_index)
+        if event.get("event") == "turn-completed":
+            self.read_stdout_through(event.get("assistant_bytes"))
         return event, self.stdout_buffer.decode("utf-8", errors="replace")
 
     def exit(self):
@@ -193,8 +190,8 @@ def main():
             if operation == "turn" and isinstance(request.get("text"), str):
                 turn += 1
                 completion, assistant_text = child.submit_turn(request["text"])
-                # The child event is forwarded before this record; it is the
-                # delimiter proving all captured stdout belongs to this turn.
+                # The event supplies the exact raw UTF-8 byte framing invariant
+                # used to capture this turn without pipe ordering assumptions.
                 if completion.get("event") == "turn-completed":
                     emit({"type": "assistant", "session_id": args.session_id,
                           "turn": turn, "text": assistant_text})

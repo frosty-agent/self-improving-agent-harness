@@ -31,6 +31,7 @@ records = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if l
 events = [record for record in records if record.get("type") == "event"]
 assistant = [record for record in records if record.get("type") == "assistant"]
 assert [event["event"] for event in events if event["event"] in ("turn-empty", "turn-completed")] == ["turn-empty", "turn-completed"], records
+assert next(event for event in events if event.get("event") == "turn-completed")["assistant_bytes"] == len("fake assistant turn 1".encode("utf-8")), records
 assert [(record["turn"], record["text"]) for record in assistant] == [(2, "fake assistant turn 1")], records
 PY
 

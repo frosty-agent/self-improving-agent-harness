@@ -59,7 +59,10 @@ event values are `session-started`, `session-exited`, `turn-submitted`,
 distinguishes `local-exit`, `eof`, and `interrupted`. Empty input emits
 `turn-empty` and makes no provider request; a failed turn emits `turn-failed`,
 retains the previous conversation history, and leaves the interactive session
-running. Final assistant text remains stdout-only.
+running. Final assistant text remains stdout-only. Every supervised
+`turn-completed` event additionally carries a required nonnegative integer
+`assistant_bytes`: the exact UTF-8 byte length of that turn's raw stdout text.
+It is a framing invariant, not an estimate or character count.
 
 The shared append-only `chat.log` is diagnostic data, not a per-session
 transcript. Its chat interaction records include the available `session_id` and
@@ -74,12 +77,15 @@ JSON object per line: `{"op":"turn","text":"..."}`, `{"op":"checkpoint"}`,
 and `{"op":"exit"}`. Its stdout returns JSONL with separate
 `{"type":"assistant",...,"text":"..."}` records and forwarded structured
 `{"type":"event",...}` lifecycle/turn records. The matching
-`turn-completed` event is emitted first and delimits the preceding raw child
-stdout bytes used for that assistant record. For example:
+`turn-completed` event is emitted first and its required `assistant_bytes` value
+delimits the exact raw child stdout bytes used for that assistant record. The
+supervisor must continue reading stdout until it has that many bytes even when
+stderr delivers the JSON event first; it must not infer completion from a
+zero-time readiness check or a delay. For example:
 
 ```json
 {"type":"event","event":"session-started","session_id":"run-16"}
-{"type":"event","event":"turn-completed","session_id":"run-16","turn":1}
+{"type":"event","event":"turn-completed","session_id":"run-16","turn":1,"assistant_bytes":3}
 {"type":"assistant","session_id":"run-16","turn":1,"text":"..."}
 ```
 
