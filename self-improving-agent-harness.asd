@@ -10,6 +10,7 @@
                (:file "src/shell-tool")
                (:file "src/reload")
                (:file "src/chat-session")
+               (:file "src/chat-turn-report")
                (:file "src/chat-cli")
                (:file "src/main"))
   :in-order-to ((test-op (test-op "self-improving-agent-harness/tests"))))

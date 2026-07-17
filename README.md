@@ -227,14 +227,14 @@ and a complete invocation. `--fake` remains an offline deterministic test-only
 backend with no provider call.
 
 For interactive supervision, `--session-id ID` forwards a nonempty caller-owned
-correlation ID. Otherwise `bin/chat` generates a non-secret
-`chat-<UTC timestamp>-<process id>` ID for that invocation. Stderr emits JSONL
-lifecycle/turn events (`session-started`, `turn-submitted`, `turn-completed`,
-`turn-failed`, `turn-empty`, and `session-exited`) with that ID; submitted turns
-are monotonically numbered. They are correlation diagnostics, not provider
-per-invocation token or cost accounting. The shared `chat.log` remains sensitive
-diagnostic data, includes available session/turn context, and excludes
-credentials and raw successful tool output.
+correlation ID (prefer a UUID). Otherwise `bin/chat` generates a fresh UUID for
+that invocation. Stderr emits JSONL lifecycle/turn events (`session-started`,
+`turn-submitted`, `turn-completed`, `turn-failed`, `turn-empty`, and
+`session-exited`) with that ID; submitted turns are monotonically numbered. They
+are correlation diagnostics, not provider per-invocation token or cost
+accounting. Durable diagnostics are written per session to `agent-logs/$ISO-TIMESTAMP.jsonl`
+in a Claude-style JSONL envelope and exclude credentials, prompts, assistant
+text, and raw tool output.
 
 See [`docs/runtime.md`](docs/runtime.md) for runtime guarantees and [`docs/initial-architecture.md`](docs/initial-architecture.md) for design questions. For a supervising agent that drives persistent `bin/chat` as an isolated, evidence-backed feedback-loop worker, use the in-repo [Harness Chat Feedback Loop skill](skills/autonomous-ai-agents/harness-chat-feedback-loop/SKILL.md).
 

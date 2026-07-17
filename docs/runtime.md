@@ -38,23 +38,35 @@ final evidence, never as normal CI coverage.
 
 ## Interaction logs
 
-Every `bin/container` run mounts the named Docker volume
-`self-improving-agent-harness-logs` at `/logs`. `bin/chat` appends UTF-8 JSON
-lines to `/logs/chat.log` for lifecycle and allow-listed metadata only:
-session/turn IDs, compact model/mode/tool/reason labels, and numeric bounds or
-exit-status metadata. Prompts, assistant text, tool commands/results, and
-arbitrary failure details are excluded because they can contain credentials or
-private repository data. A nonzero `run_shell` command is still returned to the
-model as a tool result with its exit status and combined output, so the model can
-explain or correct it without aborting the turn.
+`bin/chat` appends UTF-8 JSON lines to a **per-session** Claude-style diagnostic
+file under the workspace bind-mount: `agent-logs/$ISO-TIMESTAMP.jsonl` (container
+path `/workspace/agent-logs/...`, host path `$repo_root/agent-logs/...`). That
+directory is gitignored so hosts can inspect logs outside Docker without a named
+volume. Override with `HARNESS_LOG_DIR` when tests need an isolated temp dir.
+
+Each line is an object with Claude-like envelope fields (`type`, `uuid`,
+`parentUuid`, `sessionId`, `timestamp`, `isSidechain`) plus a harness `payload`
+that carries only allow-listed metadata: lifecycle event name, compact
+model/mode/tool/reason labels, and numeric bounds or exit-status metadata.
+Prompts, assistant text, tool commands/results, and arbitrary failure details
+are excluded because they can contain credentials or private repository data. A
+nonzero `run_shell` command is still returned to the model as a tool result with
+its exit status and combined output, so the model can explain or correct it
+without aborting the turn.
+
+`bin/container` still mounts the named Docker volume
+`self-improving-agent-harness-logs` at `/logs` for compatibility, but chat no
+longer writes session diagnostics there by default.
 
 ## Chat session correlation events
 
 Pass `--session-id ID` when a supervisor supplies the correlation identifier.
-`ID` must be nonempty and is forwarded as `HARNESS_CHAT_SESSION_ID`. When it is
-omitted, `bin/chat` generates `chat-<UTC timestamp>-<process id>` locally. The
-generated value is non-secret, stable for that invocation, and intended only to
-correlate its console and diagnostic-log records; it is not a resume token.
+`ID` must be nonempty and is forwarded as `HARNESS_CHAT_SESSION_ID`. Prefer an
+ISO-8601 UTC timestamp so the durable log path is exactly
+`agent-logs/$ISO-TIMESTAMP.jsonl`. When omitted, `bin/chat` generates a fresh UTC
+timestamp locally. Non-timestamp values remain valid for stderr correlation, but
+the log basename is always normalized to an ISO timestamp. The value is
+non-secret, stable for that invocation, and is not a resume token.
 
 In normal human interactive mode stderr includes one JSON object per machine
 event alongside the existing prompt/diagnostics. In supervised stream mode,
@@ -72,10 +84,12 @@ running. Final assistant text remains stdout-only. Every supervised
 `assistant_bytes`: the exact UTF-8 byte length of that turn's raw stdout text.
 It is a framing invariant, not an estimate or character count.
 
-The shared append-only `chat.log` is diagnostic data, not a per-session
-transcript. Its chat interaction records include the available `session_id` and
-`turn` context plus only allow-listed metadata. It excludes credentials, prompts,
-assistant text, commands, tool results, and arbitrary failure details.
+Each append-only `agent-logs/$ISO-TIMESTAMP.jsonl` file is diagnostic data for
+one chat process, shaped like a Claude Code session transcript envelope. Records
+include `sessionId` / `turn` context plus only allow-listed metadata inside
+`payload`. They exclude credentials, prompts, assistant text, commands, tool
+results, and arbitrary failure details. There is no shared multi-session
+`chat.log`.
 
 ## Supervised JSONL slice
 
@@ -104,15 +118,14 @@ or diagnostic-log content. The verification command is tokenized and executed
 without a shell; callers must still supply a safe project verification command
 (normally `sg docker -c 'make test'`). Provider usage and cost are explicitly
 `unavailable` in this slice; the adapter does not estimate them. It never merges,
-deploys, or reads `chat.log` as sanitized evidence.
+deploys, or reads `agent-logs/$ISO-TIMESTAMP.jsonl` as sanitized evidence.
 
-Inspect the latest entries from the host:
+Inspect the latest entries from the host (workspace bind-mount, no Docker shell
+required):
 
 ```bash
-sg docker -c "docker run --rm --entrypoint /bin/sh \\
-  --volume self-improving-agent-harness-logs:/logs \\
-  self-improving-agent-harness:dev \\
-  -lc 'tail -n 200 /logs/chat.log'"
+ls -1 agent-logs
+tail -n 200 agent-logs/*.jsonl
 ```
 
 ## Current boundary

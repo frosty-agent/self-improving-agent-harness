@@ -321,7 +321,7 @@ def main():
     p.add_argument("--repo"); p.add_argument("--base-ref"); p.add_argument("--run-id")
     p.add_argument("--worktree-parent"); p.add_argument("--report-dir")
     p.add_argument("--session-id", required=True); p.add_argument("--model", default="openai/gpt-4.1-mini")
-    p.add_argument("--max-rounds", type=int, default=8)
+    p.add_argument("--max-rounds", type=int, default=60)
     p.add_argument("--turn-timeout-seconds", type=int, default=TIMEOUT_SECONDS)
     p.add_argument("--verify-command", required=True); p.add_argument("--decision", choices=("retain", "reject"))
     p.add_argument("--fake", action="store_true"); args = p.parse_args()

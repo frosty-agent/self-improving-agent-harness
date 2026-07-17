@@ -52,10 +52,19 @@ done <"$stderr"
   exit 1
 }
 
-# The shared diagnostic log carries the same context for the lifecycle and empty turn.
-for expected in '"session_id":"event-session-16"' '"turn":1' '"event":"turn-empty"'; do
-  grep -F "$expected" "$log_dir/chat.log" >/dev/null || {
-    printf 'Test failed: missing log correlation field %s\n' "$expected" >&2
+# Per-session diagnostic log is $ISO-TIMESTAMP.jsonl (Claude-style). Non-timestamp correlation
+# ids are normalized to an ISO timestamp basename; stderr still carries the bound session id.
+session_log=$(find "$log_dir" -maxdepth 1 -type f -name '*.jsonl' | head -n 1)
+[ -n "$session_log" ] || {
+  printf '%s\n' 'Test failed: expected a per-session $ISO-TIMESTAMP.jsonl diagnostic log' >&2
+  exit 1
+}
+case "$(basename "$session_log")" in
+  chat.log) printf '%s\n' 'Test failed: legacy shared chat.log should not be written' >&2; exit 1 ;;
+esac
+for expected in '"sessionId":' '"turn":1' '"event":"turn-empty"' '"type":'; do
+  grep -F "$expected" "$session_log" >/dev/null || {
+    printf 'Test failed: missing log correlation field %s in %s\n' "$expected" "$session_log" >&2
     exit 1
   }
 done

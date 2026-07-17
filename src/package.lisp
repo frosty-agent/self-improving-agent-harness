@@ -51,6 +51,9 @@
    #:read-chat-input-line
    #:write-chat-prompt-closing
    #:write-chat-prompt
+   #:process-interactive-user-turn
+   #:report-completed-chat-turn
+   #:write-final-response-outcome
    #:run-interactive
    #:run-one-shot
    #:run-chat-cli

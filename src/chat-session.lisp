@@ -25,7 +25,7 @@ well-defined request boundary."
   last-provider-responses
   last-accounting)
 
-(defun make-chat-session (&key backend model options handlers (max-rounds 8)
+(defun make-chat-session (&key backend model options handlers (max-rounds 60)
                             (system-prompt +chat-system-prompt+))
   "Create a session with exactly one initial system message."
   (%make-chat-session

@@ -252,14 +252,13 @@ includes a numeric usage.cost value; partial cost is never summed."
                                    :cost-usd cost :cost-usd-state cost-state
                                    :cost-usd-reason cost-reason))))))))
 
-(defun run-tool-loop (backend request handlers &key (max-rounds 8))
+(defun run-tool-loop (backend request handlers &key (max-rounds 60))
   "Run REQUEST through BACKEND, executing registered tool calls until completion.
 
-The reload-harness behavior retains its doubled effective round limit.  The
-third return value is the ordered provider-response trace required by the
-supervisor accounting boundary; callers that only consume two values are
-unchanged."
-  (let ((effective-max-rounds (* 2 max-rounds)))
+MAX-ROUNDS is the effective tool-call round limit (no multiplier). The third
+return value is the ordered provider-response trace required by the supervisor
+accounting boundary; callers that only consume two values are unchanged."
+  (let ((effective-max-rounds max-rounds))
     (labels ((run-next-round (current-request round responses)
                (let ((response (complete backend current-request)))
                  (if (null (completion-response-tool-calls response))

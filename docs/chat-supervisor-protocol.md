@@ -36,7 +36,7 @@ and target paths outside the configured parent. There is no operation or flag
 for merge, worktree deletion, branch deletion, or automatic promotion.
 
 `--model` and `--max-rounds` are forwarded to the child `bin/chat`; the defaults
-are the exact model ID `openai/gpt-4.1-mini` and `8` rounds. The positive
+are the exact model ID `openai/gpt-4.1-mini` and `60` rounds. The positive
 `--turn-timeout-seconds` bound (default `300`) limits each supervisor wait for a
 worker event. A caller that needs final live evidence should use
 `make live-chat-supervisor-tool-smoke`, not add a provider request to normal

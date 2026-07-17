@@ -3,6 +3,10 @@
 ;;; Interactive / one-shot chat CLI helpers.
 ;;; Loaded via ASDF so reload_harness redefines these in a running chat image.
 ;;; scripts/chat.lisp only bootstraps env + calls RUN-CHAT-CLI.
+;;;
+;;; Per-turn OUTCOME formatting lives in src/chat-turn-report.lisp. The
+;;; interactive loop calls PROCESS-INTERACTIVE-USER-TURN by name each turn so
+;;; those definitions hot-reload mid-session.
 
 (defparameter +chat-input-prompt+
   " >>> "
@@ -36,7 +40,7 @@
                              :required ("command"))))
     (:type "function"
      :function (:name "reload_harness"
-                :description "Reload self-improving-agent-harness sources into this same Lisp image after editing project Lisp files. Does not reset chat history or max-rounds."
+                :description "Reload self-improving-agent-harness sources into this same Lisp image after editing project Lisp files. Returns a structured status line (status=ok|note|warning|error files=N warnings=N notes=N ...) plus any non-benign compiler diagnostics. Does not reset chat history or max-rounds."
                 :parameters (:type "object")))))
 
 (defun chat-options ()
@@ -112,11 +116,11 @@ CHAT-SESSION-TURN resolve through the global function cell each call."
     (t nil)))
 
 (defun run-one-shot (backend model max-rounds prompt)
+  "Run a single prompt and print the answer plus structured OUTCOME on stderr."
   (let* ((session (make-cli-chat-session backend model max-rounds))
+         (start (get-internal-real-time))
          (response (chat-session-turn session prompt)))
-    (format t "~A~%" (completion-response-text response))
-    (format *error-output* "OUTCOME final-response model=~A~%"
-            (completion-response-model response))))
+    (report-completed-chat-turn session start response :leading-newline nil)))
 
 (defun write-chat-prompt ()
   "Print the interactive input prompt to stderr using +CHAT-INPUT-PROMPT+.
@@ -139,6 +143,13 @@ re-entered after reload_harness)."
     input))
 
 (defun run-interactive (backend model max-rounds)
+  "Persistent interactive chat loop.
+
+The loop body intentionally stays thin and calls PROCESS-INTERACTIVE-USER-TURN,
+HANDLE-INTERACTIVE-COMMAND, WRITE-CHAT-PROMPT, and READ-CHAT-INPUT-LINE by name
+each iteration. Those global function cells are what reload_harness updates;
+this stack frame is not rewritten in place. After one process start on this
+thin loop, outcome/prompt/command changes hot-reload without restarting chat."
   (let ((session (make-cli-chat-session backend model max-rounds)))
     (format *error-output*
             "Interactive OpenRouter chat (model=~A, max-rounds=~D).~%~
@@ -162,16 +173,7 @@ Commands: /exit, /quit, /reload, /max-rounds [N]. Ctrl-C also leaves.~%"
             ((handle-interactive-command session input)
              nil)
             (t
-             (handler-case
-                 (let ((response (chat-session-turn session input)))
-                   (format t "~%~A~%" (completion-response-text response))
-                   (format *error-output* "~%OUTCOME final-response model=~A~%"
-                           (completion-response-model response)))
-               (error (condition)
-                 (note-chat-session-failure session)
-                 (format *error-output*
-                         "~%TURN_FAILED: ~A; session continues and prior history is retained.~%"
-                         condition)))))))
+             (process-interactive-user-turn session input)))))
       (when (chat-session-failed-turn-p session)
         (uiop:quit 1)))))
 
@@ -180,9 +182,16 @@ Commands: /exit, /quit, /reload, /max-rounds [N]. Ctrl-C also leaves.~%"
   (let* ((mode (required-environment "HARNESS_CHAT_MODE"))
          (model (required-environment "HARNESS_CHAT_MODEL"))
          (max-rounds (parse-integer (required-environment "HARNESS_CHAT_MAX_ROUNDS")))
-         (log-directory (or (uiop:getenv "HARNESS_LOG_DIR") "/logs"))
+         (log-directory (or (uiop:getenv "HARNESS_LOG_DIR")
+                               "/workspace/agent-logs"))
+         (preferred-session-id (uiop:getenv "HARNESS_CHAT_SESSION_ID"))
          (backend (make-chat-backend)))
-    (configure-interaction-logging log-directory)
+    ;; One session JSONL file per process: agent-logs/$ISO-TIMESTAMP.jsonl under
+    ;; the workspace bind-mount so hosts can inspect logs without the Docker
+    ;; named volume. Non-timestamp supervisor correlation IDs still work for
+    ;; stderr events, but the durable log basename is always an ISO-8601 UTC
+    ;; timestamp.
+    (configure-interaction-logging log-directory :session-id preferred-session-id)
     (log-interaction :info "session-start" :mode mode :model model :max-rounds max-rounds)
     (handler-case
         (cond

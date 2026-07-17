@@ -20,13 +20,14 @@ deterministic no-provider backend for offline integration tests only.
 
 Defaults:
   --model       openai/gpt-4.1-mini (an exact OpenRouter model ID)
-  --max-rounds  8
-  --session-id  a locally generated non-secret correlation ID
+  --max-rounds  60
+  --session-id  an ISO-8601 UTC timestamp session id (generated when omitted)
 
-Pass --session-id when a supervisor owns correlation. IDs are forwarded to the
-chat process and appear in interactive stderr events and shared diagnostic log
-records. Without it, bin/chat generates chat-<UTC timestamp>-<process id>;
-it is deterministic for that invocation, not a credential, and not a resume ID.
+Pass --session-id when a supervisor owns correlation. Prefer an ISO-8601 UTC
+timestamp so the durable log path is agent-logs/$ISO-TIMESTAMP.jsonl in the
+workspace checkout. Non-timestamp values still work for stderr correlation, but
+the log file basename is always an ISO timestamp. Without --session-id, bin/chat
+generates a fresh UTC timestamp; it is not a credential and not a resume token.
 
 Pass the Models API's `id` field to --model, not a display name. Browse
 https://openrouter.ai/models or query https://openrouter.ai/api/v1/models;
@@ -39,7 +40,7 @@ EOF
 }
 
 model=openai/gpt-4.1-mini
-max_rounds=8
+max_rounds=60
 session_id=
 session_id_supplied=false
 prompt=
@@ -78,7 +79,8 @@ esac
 if [ "$session_id_supplied" = true ]; then
   [ -n "$session_id" ] || { printf '%s\n' 'bin/chat: session ID must not be empty' >&2; exit 2; }
 else
-  session_id="chat-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  # Per-session files are $ISO-TIMESTAMP.jsonl (UTC, millisecond precision).
+  session_id=$(date -u +%Y-%m-%dT%H:%M:%S.000Z 2>/dev/null) ||     session_id=$(python3 -c 'from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z")')
 fi
 
 mode=one-shot
