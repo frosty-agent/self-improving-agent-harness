@@ -190,13 +190,22 @@ An opt-in backend runs turns through the existing ChatGPT/Codex subscription via
 the official local `codex app-server` (JSON-RPC over stdio). The image installs
 a pinned `@openai/codex` CLI; no credentials are baked in and the harness never
 reads, stores, or logs OAuth tokens. It requires `account.type == "chatgpt"` and
-never falls back to `OPENAI_API_KEY` / OpenAI Platform billing.
+never falls back to `OPENAI_API_KEY` / OpenAI Platform billing. There is **no**
+`openai-backend` / `api.openai.com` adapter in this harness: OpenAI-model usage
+on this path is subscription-only.
 
-The default OpenRouter path is unchanged; this backend is selected only via its
-constructor. Prove a working subscription session after a human Codex login:
+The default OpenRouter path is unchanged. Select the subscription backend with:
+
+```bash
+HARNESS_BACKEND=codex ./bin/chat --model gpt-5-codex ...
+# or construct make-codex-app-server-backend directly
+```
+
+`HARNESS_BACKEND=openai` is a hard error (Platform API-key billing is out of
+scope). Prove a working subscription session after a human Codex login:
 
 ```
-HARNESS_LIVE_CODEX_SMOKE=1 bin/verify-codex-chatgpt-auth   # billable; not in make test
+HARNESS_LIVE_CODEX_SMOKE=1 bin/verify-codex-chatgpt-auth   # subscription turn; not in make test
 ```
 
 See `docs/codex-subscription-backend.md` (decision record + verified protocol

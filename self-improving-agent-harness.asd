@@ -23,6 +23,7 @@
   :serial t
   :components ((:file "tests/package")
                (:file "tests/backend")
+               (:file "tests/backend-selection")
                (:file "tests/codex-jsonrpc")
                (:file "tests/codex-app-server")
                (:file "tests/codex-backend")

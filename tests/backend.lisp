@@ -30,6 +30,7 @@
                    "harness entry point identifies its configured backend")
       (ensure-true (not (getf summary :api-key-present))
                    "harness entry point does not expose API-key material"))
+      (run-backend-selection-tests)
       (run-codex-jsonrpc-tests)
       (run-codex-app-server-tests)
       (run-codex-backend-tests)

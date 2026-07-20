@@ -107,6 +107,8 @@
    #:make-openrouter-backend
    #:openrouter-backend-base-url
    #:openrouter-backend-api-key
+   #:select-chat-backend
+   #:backend-api-key-configured-p
    #:run-harness
    ;; chat CLI (reloadable via reload_harness)
    #:+chat-input-prompt+

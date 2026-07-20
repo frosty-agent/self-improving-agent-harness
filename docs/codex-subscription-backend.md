@@ -13,6 +13,13 @@ app-server**. The harness communicates with that app-server over local
 JSON-RPC. The harness does not call an undocumented ChatGPT endpoint and does
 not receive, store, or replay ChatGPT OAuth credentials.
 
+## Selection
+
+Opt in with `HARNESS_BACKEND=codex` (chat/run entry points) or by constructing
+`make-codex-app-server-backend` directly. Default remains OpenRouter.
+`HARNESS_BACKEND=openai` is rejected: this harness does not ship an
+`OPENAI_API_KEY` / `api.openai.com` backend.
+
 ## Rejected alternative: direct OpenAI API-key billing
 
 A direct `api.openai.com` adapter using `OPENAI_API_KEY` / OpenAI Platform
