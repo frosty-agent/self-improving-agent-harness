@@ -28,6 +28,10 @@ No event is written to the diagnostic JSONL path from this function."
           (append (web-session-events session) (list event)))
     event))
 
+(defun web-event-visible-in-chat-log-p (event)
+  "True when EVENT is a user or assistant message card in the conversation log."
+  (member (getf event :kind) '("user-message" "assistant-message") :test #'string=))
+
 (defun make-web-session (&key backend model run-session-id options handlers (max-rounds 60))
   "Create an isolated browser UI session around the normal chat-session seam."
   (let ((session (%make-web-session

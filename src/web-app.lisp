@@ -39,35 +39,54 @@
   (setf (clog:attribute element "data-testid") test-id)
   element)
 
-(defun web-render-event (timeline event)
-  (let* ((kind (getf event :kind))
-         (text (or (getf event :text) (getf event :result)
-                   (getf event :message) ""))
-         (item (web-mark (clog:create-div timeline
-                                          :class "event"
-                                          :content (format nil "<strong>~A</strong> ~A"
-                                                           (web-html-escape kind)
-                                                           (web-html-escape text)))
-                         (format nil "event-~D" (getf event :sequence)))))
-    (when (string= kind "tool-call-completed")
-      (setf (clog:attribute item "data-tool-call-id") (getf event :tool-call-id)))
-    item))
+(defun web-style (element value)
+  (setf (clog:attribute element "style") value)
+  element)
+
+(defun web-render-chat-message (chat-log event)
+  "Render only durable user/assistant cards; provider/tool telemetry stays internal."
+  (when (web-event-visible-in-chat-log-p event)
+    (let* ((kind (getf event :kind))
+           (userp (string= kind "user-message"))
+           (role (if userp "You" "Assistant"))
+           (text (or (getf event :text) ""))
+           (item (web-mark
+                  (clog:create-div chat-log
+                                   :class (if userp "chat-message user" "chat-message assistant")
+                                   :content (format nil "<div class=\"role\">~A</div><div>~A</div>"
+                                                    role (web-html-escape text)))
+                  (format nil "message-~D" (getf event :sequence)))))
+      (web-style item (format nil "align-self:~A;max-width:78%;padding:12px 14px;border-radius:12px;line-height:1.4;white-space:pre-wrap;~A"
+                              (if userp "flex-end" "flex-start")
+                              (if userp "background:#2563eb;color:#fff" "background:#f1f5f9;color:#0f172a")))
+      item)))
 
 (defun web-on-new-window (body)
   (setf (clog:title (clog:html-document body)) "Self-improving Agent Harness")
-  (let* ((root (clog:create-div body :class "harness-web"))
-         (heading (clog:create-section root :h1 :content "Harness chat"))
-         (run-label (clog:create-div root :content "Harness run ID"))
-         (run-id (web-mark (clog:create-div root :content (or *web-run-session-id* "not supplied"))
+  (let* ((root (web-style (clog:create-div body :class "harness-web")
+                          "height:100vh;box-sizing:border-box;padding:18px;display:flex;flex-direction:column;gap:14px;font-family:system-ui,sans-serif;background:#fff;color:#0f172a"))
+         (controls (web-style (clog:create-div root :class "session-controls")
+                              "display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #cbd5e1"))
+         (heading (clog:create-section controls :h1 :content "Harness chat"))
+         (run-label (clog:create-div controls :content "Harness run ID:"))
+         (run-id (web-mark (clog:create-div controls :content (or *web-run-session-id* "not supplied"))
                            "harness-run-id"))
-         (start (web-mark (clog:create-button root :content "Start session") "start-session"))
-         (state (web-mark (clog:create-div root :content "not started") "session-state"))
-         (browser-label (clog:create-div root :content "Browser session ID"))
-         (session-id (web-mark (clog:create-div root :content "") "session-id"))
-         (composer (web-mark (clog:create-form-element root :textarea) "prompt-composer"))
-         (send (web-mark (clog:create-button root :content "Send") "send-turn"))
-         (clear (web-mark (clog:create-button root :content "Clear session") "clear-session"))
-         (timeline (web-mark (clog:create-div root :class "timeline") "timeline"))
+         (start (web-mark (clog:create-button controls :content "Start session") "start-session"))
+         (clear (web-mark (clog:create-button controls :content "Clear session") "clear-session"))
+         (state (web-mark (clog:create-div controls :content "not started") "session-state"))
+         (browser-label (clog:create-div controls :content "Browser session ID:"))
+         (session-id (web-mark (clog:create-div controls :content "") "session-id"))
+         (chat-log (web-mark (web-style (clog:create-div root :class "chat-log")
+                                         "flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc")
+                             "chat-log"))
+         (composer-row (web-style (clog:create-div root :class "composer-row")
+                                  "display:flex;gap:10px;align-items:flex-end"))
+         (composer (web-mark (web-style (clog:create-form-element composer-row :textarea)
+                                         "flex:1;min-height:54px;resize:vertical;padding:10px;font:inherit")
+                             "prompt-composer"))
+         (send (web-mark (web-style (clog:create-button composer-row :content "Send")
+                                     "min-width:92px;height:54px;font:inherit")
+                         "send-turn"))
          (session nil)
          (rendered-sequence 0))
     (declare (ignore heading run-label run-id browser-label))
@@ -86,9 +105,8 @@
        (setf (clog:inner-html state) "ready"
              (clog:inner-html session-id) (web-session-id session)
              (clog:disabledp send) nil
-             (clog:inner-html timeline) "")
-       (web-render-event timeline (first (web-session-events session)))
-       (setf rendered-sequence 1)))
+             (clog:inner-html chat-log) "")
+       (setf rendered-sequence (length (web-session-events session)))))
     (clog:set-on-click
      send
      (lambda (obj)
@@ -98,7 +116,7 @@
          (setf (clog:value composer) "")
          (dolist (event (web-session-events session))
            (when (> (getf event :sequence) rendered-sequence)
-             (web-render-event timeline event)))
+             (web-render-chat-message chat-log event)))
          (setf rendered-sequence (length (web-session-events session))))))
     (clog:set-on-click
      clear
@@ -106,11 +124,11 @@
        (declare (ignore obj))
        (when session
          (web-session-clear session)
-         (setf (clog:inner-html timeline) ""
+         (setf (clog:inner-html chat-log) ""
                (clog:inner-html state) "ready"
                (clog:inner-html session-id) (web-session-id session))
          (dolist (event (web-session-events session))
-           (web-render-event timeline event))
+           (web-render-chat-message chat-log event))
          (setf rendered-sequence (length (web-session-events session))))))
     (clog:run body)))
 

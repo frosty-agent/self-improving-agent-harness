@@ -68,6 +68,7 @@
    #:web-session-state
    #:web-session-turn-number
    #:web-session-record-event
+   #:web-event-visible-in-chat-log-p
    #:web-session-submit
    #:web-session-clear
    #:run-web-server
