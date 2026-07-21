@@ -727,7 +727,7 @@ executes a handler; it becomes a synthetic error tool result."
                 :usage (completion-response-usage response)))))))))
 
 
-(defun run-tool-loop (backend request handlers &key (max-rounds 60))
+(defun run-tool-loop (backend request handlers &key (max-rounds 60) observer)
   "Run REQUEST through BACKEND, executing registered tool calls until completion.
 
 HANDLERS is an alist of tool-name to function designator (function object or
@@ -742,7 +742,10 @@ Provider timing: PROVIDER-REQUEST is logged before COMPLETE starts, and
 PROVIDER-RESPONSE includes DURATION-SECONDS so hangs waiting on the API are
 visible even when the process is later killed."
   (let ((effective-max-rounds (* 3 max-rounds)))
-    (labels ((tool-names-from-options (options)
+    (labels ((emit-observer (kind &rest fields)
+               (when observer
+                 (apply observer kind fields)))
+             (tool-names-from-options (options)
                (let ((tools (getf options :tools)))
                  (when (listp tools)
                    (mapcar (lambda (tool)
@@ -760,7 +763,10 @@ visible even when the process is later killed."
                                   :message-count (length messages)
                                   :tool-names (mapcar #'princ-to-string (or names '()))
                                   :timeout-seconds
-                                  (or *openrouter-request-timeout-seconds* 0))))
+                                  (or *openrouter-request-timeout-seconds* 0))
+                 (emit-observer "provider-round-started"
+                                :round round
+                                :model (completion-request-model current-request))))
              (log-provider-response (current-request round response duration-seconds)
                (let ((tool-calls (completion-response-tool-calls response)))
                  (log-interaction :info "provider-response"
@@ -779,7 +785,13 @@ visible even when the process is later killed."
                    (log-interaction :info "tool-call"
                                     :tool (or (getf tool-call :name) "unknown")
                                     :arguments (or (getf tool-call :arguments) "{}")
-                                    :round round))))
+                                    :round round))
+                 (emit-observer "provider-round-completed"
+                                :round round
+                                :model (or (completion-response-model response)
+                                           (completion-request-model current-request))
+                                :finish-reason (or (completion-response-finish-reason response)
+                                                   "unknown"))))
              (run-next-round (current-request round responses length-retries)
                (log-provider-request current-request round)
                (let ((start (get-internal-real-time)))
@@ -799,7 +811,19 @@ visible even when the process is later killed."
                                    (append (completion-request-messages current-request)
                                            (list (openrouter-assistant-tool-call-message response))
                                            (mapcar (lambda (tool-call)
-                                                     (openrouter-tool-result-message tool-call handlers))
+                                                     (emit-observer "tool-call-started"
+                                                                    :round round
+                                                                    :tool-call-id (getf tool-call :id)
+                                                                    :tool-name (getf tool-call :name)
+                                                                    :arguments (getf tool-call :arguments))
+                                                     (let ((tool-result
+                                                             (openrouter-tool-result-message tool-call handlers)))
+                                                       (emit-observer "tool-call-completed"
+                                                                      :round round
+                                                                      :tool-call-id (getf tool-call :id)
+                                                                      :tool-name (getf tool-call :name)
+                                                                      :result (getf tool-result :content))
+                                                       tool-result))
                                                    tool-calls)))
                                  (next-request
                                    (make-completion-request

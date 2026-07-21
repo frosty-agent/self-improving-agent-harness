@@ -58,6 +58,16 @@
    #:chat-session-turn
    #:chat-session-failed-turn-p
    #:note-chat-session-failure
+   ;; Browser UI session/event seam (issue #24)
+   #:web-session
+   #:make-web-session
+   #:web-session-id
+   #:web-session-chat-session
+   #:web-session-events
+   #:web-session-state
+   #:web-session-turn-number
+   #:web-session-record-event
+   #:web-session-submit
    #:completion-request
    #:make-completion-request
    #:completion-request-model

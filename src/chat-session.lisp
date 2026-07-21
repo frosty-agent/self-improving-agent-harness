@@ -99,7 +99,7 @@ if history was customized away from the default shape."
                   (rest history))))
     session))
 
-(defun chat-session-turn (session content)
+(defun chat-session-turn (session content &key observer)
   "Run one non-empty user turn and append its complete exchange to SESSION.
 
 Returns the final COMPLETION-RESPONSE. Empty input is ignored and returns NIL
@@ -149,7 +149,8 @@ synthetic follow-ups bind it to \"harness\") and written into JSONL."
                 (run-tool-loop (chat-session-backend session)
                                request
                                handlers
-                               :max-rounds (chat-session-max-rounds session))
+                               :max-rounds (chat-session-max-rounds session)
+                               :observer observer)
               (setf (chat-session-history session)
                     (append continuation-history
                             (list (list :role "assistant"
