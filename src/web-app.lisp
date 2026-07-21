@@ -68,7 +68,8 @@
          (send (web-mark (clog:create-button root :content "Send") "send-turn"))
          (clear (web-mark (clog:create-button root :content "Clear session") "clear-session"))
          (timeline (web-mark (clog:create-div root :class "timeline") "timeline"))
-         (session nil))
+         (session nil)
+         (rendered-sequence 0))
     (declare (ignore heading run-label run-id browser-label))
     (setf (clog:attribute composer "placeholder") "Enter a prompt")
     (setf (clog:disabledp send) t)
@@ -84,8 +85,10 @@
                                                (format nil "echo: ~A" (gethash "message" arguments)))))))
        (setf (clog:inner-html state) "ready"
              (clog:inner-html session-id) (web-session-id session)
-             (clog:disabledp send) nil)
-       (web-render-event timeline (first (web-session-events session)))))
+             (clog:disabledp send) nil
+             (clog:inner-html timeline) "")
+       (web-render-event timeline (first (web-session-events session)))
+       (setf rendered-sequence 1)))
     (clog:set-on-click
      send
      (lambda (obj)
@@ -93,8 +96,10 @@
        (when session
          (web-session-submit session (clog:value composer))
          (setf (clog:value composer) "")
-         (dolist (event (rest (web-session-events session)))
-           (web-render-event timeline event)))))
+         (dolist (event (web-session-events session))
+           (when (> (getf event :sequence) rendered-sequence)
+             (web-render-event timeline event)))
+         (setf rendered-sequence (length (web-session-events session))))))
     (clog:set-on-click
      clear
      (lambda (obj)
@@ -105,7 +110,8 @@
                (clog:inner-html state) "ready"
                (clog:inner-html session-id) (web-session-id session))
          (dolist (event (web-session-events session))
-           (web-render-event timeline event)))))
+           (web-render-event timeline event))
+         (setf rendered-sequence (length (web-session-events session))))))
     (clog:run body)))
 
 (defun run-web-server (&key (host "0.0.0.0") (port 18080) run-session-id)
