@@ -7,8 +7,9 @@
 
 (defstruct (web-session
             (:constructor %make-web-session
-                (&key id chat-session events state turn-number)))
+                (&key id run-session-id chat-session events state turn-number)))
   id
+  run-session-id
   chat-session
   events
   state
@@ -27,10 +28,11 @@ No event is written to the diagnostic JSONL path from this function."
           (append (web-session-events session) (list event)))
     event))
 
-(defun make-web-session (&key backend model options handlers (max-rounds 60))
+(defun make-web-session (&key backend model run-session-id options handlers (max-rounds 60))
   "Create an isolated browser UI session around the normal chat-session seam."
   (let ((session (%make-web-session
                   :id (uuid-v4-string)
+                  :run-session-id run-session-id
                   :chat-session (make-chat-session :backend backend :model model
                                                    :options options :handlers handlers
                                                    :max-rounds max-rounds)
@@ -39,6 +41,7 @@ No event is written to the diagnostic JSONL path from this function."
                   :turn-number 0)))
     (web-session-record-event session "session-started"
                               :session-id (web-session-id session)
+                              :run-session-id run-session-id
                               :state "ready"
                               :model model
                               :backend (backend-name backend)
@@ -103,5 +106,6 @@ No workspace snapshots or diagnostic files are selected or deleted here."
           (web-session-turn-number session) 0)
     (web-session-record-event session "session-cleared"
                               :session-id (web-session-id session)
+                              :run-session-id (web-session-run-session-id session)
                               :state "ready")
     session))

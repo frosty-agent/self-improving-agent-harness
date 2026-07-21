@@ -4,6 +4,9 @@
 ;;; The browser remains a local, trusted surface: no credential or provider
 ;;; transport data is sent to it.
 
+(defvar *web-run-session-id* nil
+  "The existing HARNESS_CHAT_SESSION_ID that owns this CLOG server process.")
+
 (defclass web-fake-backend (backend)
   ((responses :initarg :responses :accessor web-fake-backend-responses)))
 
@@ -54,15 +57,19 @@
   (setf (clog:title (clog:html-document body)) "Self-improving Agent Harness")
   (let* ((root (clog:create-div body :class "harness-web"))
          (heading (clog:create-section root :h1 :content "Harness chat"))
+         (run-label (clog:create-div root :content "Harness run ID"))
+         (run-id (web-mark (clog:create-div root :content (or *web-run-session-id* "not supplied"))
+                           "harness-run-id"))
          (start (web-mark (clog:create-button root :content "Start session") "start-session"))
          (state (web-mark (clog:create-div root :content "not started") "session-state"))
+         (browser-label (clog:create-div root :content "Browser session ID"))
          (session-id (web-mark (clog:create-div root :content "") "session-id"))
          (composer (web-mark (clog:create-form-element root :textarea) "prompt-composer"))
          (send (web-mark (clog:create-button root :content "Send") "send-turn"))
          (clear (web-mark (clog:create-button root :content "Clear session") "clear-session"))
          (timeline (web-mark (clog:create-div root :class "timeline") "timeline"))
          (session nil))
-    (declare (ignore heading))
+    (declare (ignore heading run-label run-id browser-label))
     (setf (clog:attribute composer "placeholder") "Enter a prompt")
     (setf (clog:disabledp send) t)
     (clog:set-on-click
@@ -72,6 +79,7 @@
        (setf session (make-web-session
                       :backend (make-web-fake-backend)
                       :model "web/fake"
+                      :run-session-id *web-run-session-id*
                       :handlers `(("echo" . ,(lambda (arguments)
                                                (format nil "echo: ~A" (gethash "message" arguments)))))))
        (setf (clog:inner-html state) "ready"
@@ -100,9 +108,11 @@
            (web-render-event timeline event)))))
     (clog:run body)))
 
-(defun run-web-server (&key (host "0.0.0.0") (port 18080))
+(defun run-web-server (&key (host "0.0.0.0") (port 18080) run-session-id)
   "Start the local CLOG app. Docker controls host exposure separately."
+  (setf *web-run-session-id* run-session-id)
   (clog:initialize #'web-on-new-window :host host :port port)
-  (format t "WEB_READY url=http://127.0.0.1:~D/~%" port)
+  (format t "WEB_READY url=http://127.0.0.1:~D/ run_session_id=~A~%"
+          port (or run-session-id "none"))
   (finish-output)
   (loop (sleep 60)))

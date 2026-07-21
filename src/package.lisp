@@ -62,6 +62,7 @@
    #:web-session
    #:make-web-session
    #:web-session-id
+   #:web-session-run-session-id
    #:web-session-chat-session
    #:web-session-events
    #:web-session-state

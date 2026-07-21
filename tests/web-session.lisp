@@ -12,12 +12,15 @@
                                  :responses (list response)))
          (session (make-web-session :backend backend
                                     :model "test/model"
+                                    :run-session-id "harness-run-24"
                                     :options '(:max-tokens 64)
                                     :handlers '()
                                     :max-rounds 3)))
     (ensure-equal '("session-started")
                   (mapcar #'web-event-kind (web-session-events session))
                   "a web session starts with one observable lifecycle event")
+    (ensure-equal "harness-run-24" (getf (first (web-session-events session)) :run-session-id)
+                  "a browser session carries its existing harness run correlation ID")
     (web-session-submit session "hello from browser")
     (ensure-equal '("session-started" "user-message" "assistant-pending"
                     "provider-round-started" "provider-round-completed"
