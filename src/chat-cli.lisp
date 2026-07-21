@@ -106,13 +106,9 @@ visible to the already-running interactive session."
     ("reload_harness" . reload-tool)
     ("run_subagent" . subagent-tool)))
 
-(defun make-chat-backend ()
-  "Construct the chat provider backend from HARNESS_BACKEND (default openrouter).
-
-Delegates to SELECT-CHAT-BACKEND. Supported values: openrouter (OPENROUTER_API_KEY)
-or codex (ChatGPT/Codex subscription via local app-server). OpenAI Platform
-API-key billing (OPENAI_API_KEY / api.openai.com) is not offered and is rejected."
-  (select-chat-backend))
+(defun make-chat-backend (&key backend)
+  "Construct the chat provider backend, optionally overriding HARNESS_BACKEND."
+  (select-chat-backend :backend backend))
 
 (defun make-cli-chat-session (backend model max-rounds &key history)
   "Build a CLI chat session that re-resolves options/handlers after reload.
@@ -360,13 +356,14 @@ fresh session instead."
             (history (if (pathnamep snapshot) nil (getf snapshot :history))))
         (setf history (or history (read-session-history-snapshot path)))
         (when (and history (listp history))
-          (multiple-value-bind (session-id model max-rounds)
+          (multiple-value-bind (session-id model max-rounds backend)
               (read-session-snapshot-metadata path)
             (list :session-id (or session-id
                                   (snapshot-session-id-from-path path))
                   :history history
                   :model model
                   :max-rounds max-rounds
+                  :backend backend
                   :path path)))))))
 
 (defparameter *workspace-env-file*
@@ -461,7 +458,10 @@ not an error. Returns the list of variable names set."
          (session-id (or (getf resume-plan :session-id) preferred-session-id))
          (model (or (getf resume-plan :model) model))
          (max-rounds (or (getf resume-plan :max-rounds) max-rounds))
-         (backend (make-chat-backend)))
+         (backend-override (and resume-plan
+                                (not (string= (or (uiop:getenv "HARNESS_CHAT_BACKEND_EXPLICIT") "") "true"))
+                                (getf resume-plan :backend)))
+         (backend (make-chat-backend :backend backend-override)))
     ;; One session JSONL file per process: agent-logs/$ISO-TIMESTAMP.jsonl under
     ;; the workspace bind-mount so hosts can inspect logs without the Docker
     ;; named volume. Non-timestamp supervisor correlation IDs still work for
