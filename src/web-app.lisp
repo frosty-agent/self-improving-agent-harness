@@ -6,6 +6,8 @@
 
 (defvar *web-run-session-id* nil
   "The existing HARNESS_CHAT_SESSION_ID that owns this CLOG server process.")
+(defvar *web-fake-scenario* nil
+  "Optional deterministic server scenario, set once by RUN-WEB-SERVER.")
 
 (defvar *web-sessions* (make-hash-table :test #'equal))
 (defvar *web-session-order* '())
@@ -43,6 +45,15 @@
                     :arguments "{\"message\":\"browser tool flow\"}")))
     (make-completion-response :text "Deterministic tool flow completed."
                               :model "web/fake" :finish-reason "stop"))))
+
+(defun web-selected-backend (name)
+  "Construct the selected provider adapter without exposing credentials to the UI."
+  (if (string= (or *web-fake-scenario* "") "tool-success")
+      (make-web-fake-backend)
+      (cond ((string= name "synthetic") (make-synthetic-backend :api-key (uiop:getenv "SYNTHETIC_API_KEY")))
+            ((string= name "openrouter") (make-openrouter-backend :api-key (uiop:getenv "OPENROUTER_API_KEY")))
+            ((string= name "codex") (make-codex-app-server-backend))
+            (t (error "Backend must be synthetic, openrouter, or codex.")))))
 
 (defun web-html-escape (text)
   (with-output-to-string (out)
@@ -86,6 +97,10 @@
          (heading (clog:create-section controls :h1 :content "Harness chat"))
          (run-label (clog:create-div controls :content "Harness run ID:"))
          (run-id (web-mark (clog:create-div controls :content (or *web-run-session-id* "not supplied")) "harness-run-id"))
+         (backend-label (clog:create-div controls :content "Backend:"))
+         (backend-input (web-mark (web-style (clog:create-form-element controls :text) "width:110px;padding:6px;font-family:ui-monospace,monospace") "backend-input"))
+         (model-label (clog:create-div controls :content "Model:"))
+         (model-input (web-mark (web-style (clog:create-form-element controls :text) "width:160px;padding:6px;font-family:ui-monospace,monospace") "model-input"))
          (start (web-mark (clog:create-button controls :content "New session") "start-session"))
          (clear (web-mark (clog:create-button controls :content "Clear session") "clear-session"))
          (state (web-mark (clog:create-div controls :content "not started") "session-state"))
@@ -102,7 +117,9 @@
          (send (web-mark (web-style (clog:create-button composer-row :content "Send") "min-width:92px;height:54px;font:inherit") "send-turn"))
          (session nil)
          (rendered-sequence 0))
-    (declare (ignore heading run-label run-id browser-label sidebar-title))
+    (declare (ignore heading run-label run-id browser-label sidebar-title backend-label model-label))
+    (setf (clog:value backend-input) "synthetic"
+          (clog:value model-input) "syn:large:text")
     (setf (clog:attribute composer "placeholder") "Enter a prompt")
     (setf (clog:disabledp send) t)
     (labels ((render-active-session ()
@@ -131,12 +148,14 @@
        start
        (lambda (obj)
          (declare (ignore obj))
-         (setf session (web-register-session
-                        (make-web-session :backend (make-web-fake-backend) :model "web/fake"
-                                          :run-session-id *web-run-session-id*
-                                          :handlers `(("echo" . ,(lambda (arguments) (format nil "echo: ~A" (gethash "message" arguments))))))))
-         (render-session-list)
-         (render-active-session)))
+         (let ((backend-name (string-downcase (string-trim '(#\Space #\Tab #\Newline #\Return) (clog:value backend-input))))
+               (model-name (string-trim '(#\Space #\Tab #\Newline #\Return) (clog:value model-input))))
+           (setf session (web-register-session
+                          (make-web-session :backend (web-selected-backend backend-name) :model model-name
+                                            :run-session-id *web-run-session-id*
+                                            :handlers `(("echo" . ,(lambda (arguments) (format nil "echo: ~A" (gethash "message" arguments))))))))
+           (render-session-list)
+           (render-active-session))))
       (clog:set-on-click
        send
        (lambda (obj)
@@ -160,9 +179,10 @@
            (render-active-session))))
     (clog:run body))))
 
-(defun run-web-server (&key (host "0.0.0.0") (port 18080) run-session-id)
+(defun run-web-server (&key (host "0.0.0.0") (port 18080) run-session-id fake-scenario)
   "Start the local CLOG app. Docker controls host exposure separately."
-  (setf *web-run-session-id* run-session-id)
+  (setf *web-run-session-id* run-session-id
+        *web-fake-scenario* fake-scenario)
   (clog:initialize #'web-on-new-window :host host :port port)
   (format t "WEB_READY url=http://127.0.0.1:~D/ run_session_id=~A~%"
           port (or run-session-id "none"))

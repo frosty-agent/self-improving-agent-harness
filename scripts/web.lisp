@@ -4,4 +4,5 @@
 (let ((port (parse-integer (or (uiop:getenv "HARNESS_WEB_PORT") "18080"))))
   (self-improving-agent-harness:run-web-server
    :port port
-   :run-session-id (uiop:getenv "HARNESS_CHAT_SESSION_ID")))
+   :run-session-id (uiop:getenv "HARNESS_CHAT_SESSION_ID")
+   :fake-scenario (uiop:getenv "HARNESS_WEB_FAKE_SCENARIO")))
