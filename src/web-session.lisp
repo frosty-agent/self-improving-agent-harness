@@ -26,7 +26,10 @@
     event))
 
 (defun web-event-visible-in-chat-log-p (event)
-  (member (getf event :kind) '("user-message" "assistant-message") :test #'string=))
+  "Expose user, assistant, and tool lifecycle events in the browser transcript."
+  (member (getf event :kind)
+          '("user-message" "assistant-message" "tool-call-started" "tool-call-completed")
+          :test #'string=))
 
 (defun make-web-session-log-context (log-directory durable-session-id)
   "Configure a durable session once and capture its dynamic logging bindings."

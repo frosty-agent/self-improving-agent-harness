@@ -97,21 +97,26 @@
   element)
 
 (defun web-render-chat-message (chat-log event)
-  "Render only durable user/assistant cards; provider/tool telemetry stays internal."
+  "Render chat messages and tool lifecycle cards, including recovered malformed calls."
   (when (web-event-visible-in-chat-log-p event)
     (let* ((kind (getf event :kind))
            (userp (string= kind "user-message"))
-           (role (if userp "You" "Assistant"))
-           (text (or (getf event :text) ""))
-           (item (web-mark
-                  (clog:create-div chat-log
-                                   :class (if userp "chat-message user" "chat-message assistant")
-                                   :content (format nil "<div class=\"role\">~A</div><div>~A</div>"
-                                                    role (web-html-escape text)))
-                  (format nil "message-~D" (getf event :sequence)))))
-      (web-style item (format nil "box-sizing:border-box;width:100%;padding:12px 14px;border-radius:6px;line-height:1.4;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:0.92rem;border-left:3px solid ~A;~A"
-                              (if userp "#3b82f6" "#94a3b8")
-                              (if userp "background:#eff6ff;color:#0f172a" "background:#f8fafc;color:#334155")))
+           (assistantp (string= kind "assistant-message"))
+           (tool-start-p (string= kind "tool-call-started"))
+           (role (cond (userp "You") (assistantp "Assistant")
+                       (tool-start-p (format nil "Tool call · ~A" (or (getf event :tool-name) "unknown")))
+                       (t (format nil "Tool result · ~A" (or (getf event :tool-name) "unknown")))))
+           (text (cond (tool-start-p (or (getf event :arguments) "{}"))
+                       ((string= kind "tool-call-completed") (or (getf event :result) ""))
+                       (t (or (getf event :text) ""))))
+           (color (cond (userp "#3b82f6") (assistantp "#94a3b8") (tool-start-p "#d97706") (t "#059669")))
+           (background (cond (userp "#eff6ff") (assistantp "#f8fafc") (tool-start-p "#fffbeb") (t "#ecfdf5")))
+           (item (web-mark (clog:create-div chat-log
+                                            :class "chat-message"
+                                            :content (format nil "<div class=\"role\">~A</div><div>~A</div>"
+                                                             role (web-html-escape text)))
+                           (format nil "message-~D" (getf event :sequence)))))
+      (web-style item (format nil "box-sizing:border-box;width:100%;padding:12px 14px;border-radius:6px;line-height:1.4;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:0.92rem;border-left:3px solid ~A;background:~A;color:#0f172a" color background))
       item)))
 
 (defun web-on-new-window (body)
