@@ -119,12 +119,14 @@ DURABLE-SESSION-ID is the shared CLI/web identity. ID remains a browser UI UUID.
                                     :text (completion-response-text response))
           response)
       (error (condition)
-        (declare (ignore condition))
-        (note-chat-session-failure (web-session-chat-session session))
-        (setf (web-session-state session) :failed-turn)
-        (web-session-record-event session "turn-failed" :state "failed-turn"
-                                  :message "The turn failed. Retry is available.")
-        nil))))
+        (let ((detail (scrub-interaction-log-text (princ-to-string condition))))
+          (note-chat-session-failure (web-session-chat-session session))
+          (setf (web-session-state session) :failed-turn)
+          (web-session-record-event
+           session "turn-failed" :state "failed-turn"
+           :message (format nil "Provider request failed: ~A~%Retry is available."
+                            (if (> (length detail) 600) (subseq detail 0 600) detail)))
+          nil)))))
 
 (defun web-session-clear (session)
   "Start a new browser conversation; prior durable history remains discoverable."
