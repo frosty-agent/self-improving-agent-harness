@@ -381,7 +381,7 @@ free of app-specific assumptions.
 A few runtime parameters are configurable and reload-friendly (redefine them at
 the REPL to change the defaults for subsequent calls): `*browser-default-url*`,
 `*browser-default-timeout*` (seconds, forwarded to Playwright as ms), and
-`*browser-default-screenshot-path*`.
+`*browser-default-screenshot-path*` (defaults to `./docs-tmp/browser-screenshot.png`). Browser screenshots and videos are saved to `./docs-tmp/` by default; this directory is gitignored and is the expected location for browser-generated artifacts.
 
 ### Verification artifact bundle
 

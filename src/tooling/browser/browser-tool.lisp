@@ -31,8 +31,15 @@ BROWSER-OPEN, reused by subsequent tools, closed by BROWSER-CLOSE.")
 (defparameter *browser-default-url* "http://localhost:18080/"
   "Default URL navigated to by BROWSER-OPEN when the tool call omits :url.")
 
-(defparameter *browser-default-screenshot-path* "/workspace/browser-screenshot.png"
-  "Default file path for BROWSER-SCREENSHOT when the tool call omits :path.")
+(defparameter *browser-default-screenshot-path* (namestring (merge-pathnames "docs-tmp/browser-screenshot.png" (uiop:getcwd)))
+  "Default file path for BROWSER-SCREENSHOT when the tool call omits :path.
+Browser screenshots and videos are saved to ./docs-tmp/ by default; this
+directory is gitignored and is the expected location for browser artifacts.")
+
+(defparameter *browser-default-video-path* (namestring (merge-pathnames "docs-tmp/browser-video.webm" (uiop:getcwd)))
+  "Default file path for BROWSER-VIDEO when the tool call omits :path.
+Browser screenshots and videos are saved to ./docs-tmp/ by default; this
+directory is gitignored and is the expected location for browser artifacts.")
 
 (defparameter *browser-default-timeout* 30
   "Default timeout in seconds for browser navigation and assertions. Passed
@@ -262,19 +269,14 @@ finalizes the current video file (by closing and re-opening the page),
 copies it to the requested path, and opens a fresh page for continued
 interaction. The caller should navigate again after saving since the
 page is new. Returns the saved path and byte count."
-  (let ((path (browser-getarg arguments "path"
-                              (namestring
-                               (merge-pathnames "browser-video.webm"
-                                                (uiop:getcwd))))))
+  (let ((path (browser-getarg arguments "path" *browser-default-video-path*)))
     (log-interaction :info "tool-call" :tool "browser_video" :path path))
   (handler-case
       (let ((bridge (browser-ensure-bridge)))
         (if (null bridge)
             (browser-bridge-dead-message)
             (let* ((path (browser-getarg arguments "path"
-                                         (namestring
-                                          (merge-pathnames "browser-video.webm"
-                                                           (uiop:getcwd)))))
+                                         *browser-default-video-path*))
                    (result
                      (pw-call bridge "save_video"
                               (browser-make-params "path" path)))

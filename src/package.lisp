@@ -89,13 +89,17 @@
    #:pw-alive-p
    #:with-playwright-bridge
    #:*playwright-bridge*
+   #:*browser-default-url*
+   #:*browser-default-timeout*
+   #:*browser-default-screenshot-path*
+   #:*browser-default-video-path*
    #:browser-open-tool
    #:browser-click-tool
    #:browser-type-tool
    #:browser-get-text-tool
    #:browser-eval-tool
    #:browser-screenshot-tool
-#:browser-video-tool
+   #:browser-video-tool
    #:browser-assert-tool
    #:browser-close-tool
    ;; Harness CLOG web UI browser tooling (issue #41)
