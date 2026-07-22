@@ -557,7 +557,22 @@ the round without changing the COMPLETE generic-function signature.")
   "Return true when TEXT appears to contain an XML-ish embedded tool call."
   (and (stringp text)
        (or (search "<tool_call>" text :test #'char-equal)
-           (search "<|tool_call_begin|>" text))))
+           (search "<|tool_call_begin|>" text)
+           (search "<run_shell><![CDATA[" text :test #'char-equal))))
+
+(defun parse-cdata-run-shell-tool-call (text)
+  "Recover Qwen's complete <run_shell><![CDATA[COMMAND]]></run_shell> dialect."
+  (let ((open (search "<run_shell><![CDATA[" text :test #'char-equal)))
+    (when open
+      (let* ((start (+ open (length "<run_shell><![CDATA[")))
+             (end (search "]]></run_shell>" text :start2 start :test #'char-equal)))
+        (when (and end (> end start))
+          (let ((command (subseq text start end)))
+            (values (list (make-recovered-tool-call "run_shell"
+                                                    (encode-tool-arguments-json (list (cons "command" command)))
+                                                    :recovery :cdata-run-shell))
+                    (string-trim '(#\Space #\Tab #\Newline #\Return) (subseq text 0 open))
+                    :cdata-run-shell)))))))
 
 (defun parse-kimi-text-tool-calls (text)
   "Recover complete Kimi sentinel tool markup without guessing arguments.
@@ -755,9 +770,11 @@ executes a handler; it becomes a synthetic error tool result."
        response)
       (t
        (multiple-value-bind (calls leading status)
-           (if (search "<|tool_call_begin|>" text)
-               (parse-kimi-text-tool-calls text)
-               (parse-text-embedded-tool-calls text))
+           (cond ((search "<|tool_call_begin|>" text)
+                  (parse-kimi-text-tool-calls text))
+                 ((search "<run_shell><![CDATA[" text :test #'char-equal)
+                  (parse-cdata-run-shell-tool-call text))
+                 (t (parse-text-embedded-tool-calls text)))
          (if (null calls)
              response
              (progn
