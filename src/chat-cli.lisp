@@ -127,6 +127,11 @@ designator path.")
                 :parameters (:type "object"
                              :properties (:path (:type "string" :description "File path to save the screenshot. Defaults to /workspace/browser-screenshot.png"))
                              :required ())))
+    (:type "function" :function (:name "browser_video"
+                :description "Save the recorded browser video to a WebM file. The browser records video continuously from browser_open; this method finalizes and saves the recording. The page is re-opened after saving, so call browser_open to navigate again."
+                :parameters (:type "object"
+                             :properties (:path (:type "string" :description "File path to save the video (.webm). Defaults to /workspace/browser-video.webm"))
+                             :required ())))
     (:type "function" :function (:name "browser_assert"
                 :description "Assert a JavaScript expression is truthy in the browser page. Returns pass/fail with the value."
                 :parameters (:type "object"
@@ -159,6 +164,7 @@ visible to the already-running interactive session."
     ("browser_get_text" . browser-get-text-tool)
     ("browser_eval" . browser-eval-tool)
     ("browser_screenshot" . browser-screenshot-tool)
+    ("browser_video" . browser-video-tool)
     ("browser_assert" . browser-assert-tool)
     ("browser_close" . browser-close-tool)))
 

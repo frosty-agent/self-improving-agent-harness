@@ -95,6 +95,7 @@
    #:browser-get-text-tool
    #:browser-eval-tool
    #:browser-screenshot-tool
+#:browser-video-tool
    #:browser-assert-tool
    #:browser-close-tool
    ;; Harness CLOG web UI browser tooling (issue #41)

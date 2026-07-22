@@ -254,6 +254,41 @@ Returns a status string with the page title and final URL."
                        :message (princ-to-string condition))
       (format nil "browser_screenshot failed: ~A" condition))))
 
+(defun browser-video-tool (arguments)
+  "browser_video tool handler. Saves the recorded browser video to :path.
+
+The bridge records video continuously from browser_open. This method
+finalizes the current video file (by closing and re-opening the page),
+copies it to the requested path, and opens a fresh page for continued
+interaction. The caller should navigate again after saving since the
+page is new. Returns the saved path and byte count."
+  (let ((path (browser-getarg arguments "path"
+                              (namestring
+                               (merge-pathnames "browser-video.webm"
+                                                (uiop:getcwd))))))
+    (log-interaction :info "tool-call" :tool "browser_video" :path path))
+  (handler-case
+      (let ((bridge (browser-ensure-bridge)))
+        (if (null bridge)
+            (browser-bridge-dead-message)
+            (let* ((path (browser-getarg arguments "path"
+                                         (namestring
+                                          (merge-pathnames "browser-video.webm"
+                                                           (uiop:getcwd)))))
+                   (result
+                     (pw-call bridge "save_video"
+                              (browser-make-params "path" path)))
+                   (saved-path (gethash "path" result))
+                   (bytes (gethash "bytes" result)))
+              (log-interaction :info "tool-completed" :tool "browser_video"
+                               :path saved-path :bytes bytes)
+              (format nil "Video saved: path=~A bytes=~A~%Note: the page was re-opened after saving. Call browser_open to navigate again."
+                      (or saved-path path) (or bytes 0)))))
+    (error (condition)
+      (log-interaction :error "tool-failed" :tool "browser_video"
+                       :message (princ-to-string condition))
+      (format nil "browser_video failed: ~A" condition))))
+
 (defun browser-assert-tool (arguments)
   "browser_assert tool handler. Asserts :expression is truthy; returns PASS/FAIL."
   (let ((expression (browser-getarg arguments "expression")))

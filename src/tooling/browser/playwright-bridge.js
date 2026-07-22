@@ -43,7 +43,7 @@ async function main() {
   const videoDir = '/tmp/pw-videos';
   fs.mkdirSync(videoDir, { recursive: true });
   const context = await browser.newContext({ recordVideo: { dir: videoDir } });
-  const page = await context.newPage();
+  let page = await context.newPage();
 
   // Capture browser console messages and uncaught page errors for get_console.
   page.on('console', (msg) => {
@@ -62,8 +62,11 @@ async function main() {
   // and returns a plain object that becomes the `result` of the response.
   const methods = {
     // Navigate to a URL and return the final URL plus the page title.
-    async navigate({ url }) {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    // `timeout` is in milliseconds and defaults to 30000 when omitted by the
+    // caller (the Lisp side passes *browser-default-timeout* in seconds,
+    // converted to ms here).
+    async navigate({ url, timeout }) {
+      await page.goto(url, { waitUntil: 'networkidle', timeout: timeout || 30000 });
       return { url: page.url(), title: await page.title() };
     },
 
@@ -120,6 +123,36 @@ async function main() {
       const messages = consoleBuffer.slice();
       consoleBuffer.length = 0;
       return { messages };
+    },
+
+    // Save the recorded video to a target path. The video file is only
+    // finalized when the page closes, so this method:
+    //   1. Gets the current video file path (while the page is still open)
+    //   2. Closes the page (which finalizes the .webm file on disk)
+    //   3. Copies the finalized video to the requested path
+    //   4. Opens a fresh page (with video recording) for continued interaction
+    // The caller should navigate again after save_video since the page is new.
+    async save_video({ path: targetPath }) {
+      // Step 1: get the current video file path before closing
+      const video = page.video();
+      const sourcePath = video ? await video.path() : null;
+      // Step 2: close the page to finalize the video file
+      try { await page.close(); } catch (e) {}
+      // Step 3: copy the finalized video to the target path
+      let bytes = 0;
+      if (sourcePath && fs.existsSync(sourcePath)) {
+        fs.copyFileSync(sourcePath, targetPath);
+        bytes = fs.statSync(targetPath).size;
+      }
+      // Step 4: open a fresh page with video recording for continued use
+      page = await context.newPage();
+      page.on('console', (msg) => {
+        consoleBuffer.push({ type: 'console', kind: msg.type(), text: msg.text() });
+      });
+      page.on('pageerror', (err) => {
+        consoleBuffer.push({ type: 'pageerror', text: err.message });
+      });
+      return { path: targetPath, bytes, sourcePath };
     },
 
     // Close everything and exit the process.
