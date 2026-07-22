@@ -20,6 +20,7 @@
                (:file "src/web-app")
                (:file "src/tooling/browser/playwright-bridge")
                (:file "src/tooling/browser/browser-tool")
+               (:file "src/tooling/browser/harness-web-ui/harness-web-ui-tool")
                (:file "src/chat-turn-report")
                (:file "src/chat-cli")
                (:file "src/main"))

@@ -97,6 +97,17 @@
    #:browser-screenshot-tool
    #:browser-assert-tool
    #:browser-close-tool
+   ;; Harness CLOG web UI browser tooling (issue #41)
+   #:*harness-web-ui-url*
+   #:*harness-web-ui-testids*
+   #:harness-web-ui-selector
+   #:harness-web-ui-open
+   #:harness-web-ui-start-session
+   #:harness-web-ui-send-prompt
+   #:harness-web-ui-assert-chat-log-contains
+   #:harness-web-ui-get-run-id
+   #:harness-web-ui-screenshot
+   #:harness-web-ui-close
    #:completion-request
    #:make-completion-request
    #:completion-request-model
