@@ -206,6 +206,53 @@ after a turn completes."
                                 "var m=document.querySelector('meta[name=\"viewport\"]');"
                                 " if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}"
                                 " m.content='width=device-width,initial-scale=1,interactive-widget=resizes-content';"))
+  ;; --- Issue #45 (client-side resilience): make the CLOG websocket self-heal. ---
+  ;; CLOG's boot.js treats a code-1000 (normal-closure) close as a permanent
+  ;; shutdown: Shutdown_ws sets ws=null and never reconnects, so every click
+  ;; handler that calls ws.send(...) throws "Cannot read properties of null
+  ;; (reading 'send')" and the user must reload. The server-side timeout fix
+  ;; above prevents the idle-timeout 1000 close, but a connection can still
+  ;; drop (network blip, server restart, browser throttling a background
+  ;; tab). This injected layer reconnects preserving the connection id so the
+  ;; UI recovers instead of bricking. It wraps ws.onclose so a 1000 close
+  ;; reconnects with ?r=<connection_id> (the same path boot.js uses for
+  ;; abnormal closes) instead of shutting down, and it keeps the pinger
+  ;; alive. The wrapper re-installs itself after every (re)connect by
+  ;; polling for a fresh ws object, so it survives reconnects.
+  (clog:js-execute body
+                   (concatenate 'string
+                                "if(!window.__harnessWsGuard){window.__harnessWsGuard=true;"
+                                " window.__harnessShutdown=function(){"
+                                "  try{if(window.ws&&typeof window.ws.close==='function'){window.ws.onerror=null;window.ws.onclose=null;window.ws.close();}}catch(e){}"
+                                "  clearInterval(window.pingerid);"
+                                "  setTimeout(window.__harnessReconnect,500);"
+                                " };"
+                                " try{if(typeof Shutdown_ws==='function'&&!Shutdown_ws.__harnessPatched){"
+                                "  var __origShutdown=Shutdown_ws;Shutdown_ws=function(e){window.__harnessShutdown();};Shutdown_ws.__harnessPatched=true;}}catch(e){}"
+                                " window.__harnessReconnect=function(){"
+                                "  try{if(window.ws&&typeof window.ws.close==='function'){window.ws.onerror=null;window.ws.onclose=null;window.ws.close();}}catch(e){}"
+                                "  window.ws=null;"
+                                "  var adr=(location.protocol==='https:'?'wss://':'ws://')+location.hostname;"
+                                "  if(location.port!==''){adr=adr+':'+location.port;}"
+                                "  adr=adr+'/clog';"
+                                "  var url=clog['connection_id']?(adr+'?r='+clog['connection_id']):adr;"
+                                "  try{window.ws=new WebSocket(url);}catch(e){window.ws=null;}"
+                                "  if(window.ws){window.ws.onopen=function(){Setup_ws();};"
+                                "   window.ws.onclose=function(){setTimeout(window.__harnessReconnect,500);};"
+                                "   window.pingerid=setInterval(function(){if(window.ws&&window.ws.readyState===1){window.ws.send('0');}},10000);}"
+                                " };"
+                                " window.__harnessInstallGuard=function(){"
+                                "  if(window.ws&&window.ws.readyState===1&&!window.ws.__harnessGuarded){"
+                                "   window.ws.__harnessGuarded=true;"
+                                "   var orig=window.ws.onclose;"
+                                "   window.ws.onclose=function(event){"
+                                "    if(event&&event.code===1000){window.__harnessReconnect();return;}"
+                                "    if(orig){return orig.call(this,event);}"
+                                "   };"
+                                "  }"
+                                " };"
+                                " setInterval(window.__harnessInstallGuard,1000);"
+                                "}"))
   (let* ((root (web-style (clog:create-div body :class "harness-web")
                           "min-height:100vh;min-height:100dvh;box-sizing:border-box;padding:clamp(10px,2vw,18px);display:flex;flex-direction:column;gap:12px;font-family:system-ui,sans-serif;background:#fff;color:#0f172a;overflow-x:hidden"))
          (controls (web-style (clog:create-div root :class "session-controls")
@@ -425,6 +472,27 @@ after a turn completes."
   (setf *web-run-session-id* run-session-id
         *web-fake-scenario* fake-scenario
         *web-log-directory* log-directory)
+  ;; --- Issue #45: keep the CLOG websocket alive across long idle periods. ---
+  ;; Hunchentoot's *DEFAULT-CONNECTION-TIMEOUT* defaults to 20 seconds and is
+  ;; used as the read/write timeout for every clack/hunchentoot acceptor
+  ;; socket, including the upgraded CLOG websocket. The websocket-driver
+  ;; server read loop (READ-WEBSOCKET-FRAME) retries once on an I/O timeout
+  ;; and then returns NIL, which makes the loop exit and CLOSE-CONNECTION
+  ;; send a code-1000 (normal-closure) frame. CLOG's boot.js treats a 1000
+  ;; close as a permanent shutdown (Shutdown_ws sets ws=null and never
+  ;; reconnects), so every jQuery click handler that calls ws.send(...) then
+  ;; throws "Cannot read properties of null (reading 'send')" and the user
+  ;; must reload the page. With no client data for ~40s (two 20s timeouts)
+  ;; the connection dies even though CLOG pings every 10s, because any
+  ;; jitter (a backgrounded tab throttling setInterval, a slow main thread)
+  ;; can push a ping past the 20s boundary. Setting the timeout to NIL before
+  ;; CLOG starts the server removes the socket read/write timeout entirely
+  ;; so a long-lived websocket never times out from idle. (The clack-acceptor
+  ;; reads this variable at instance-creation time via its :default-initargs,
+  ;; so it must be set before CLOG:INITIALIZE calls CLACK:CLACKUP.)
+  (when (and (find-package :hunchentoot)
+             (boundp (intern "*DEFAULT-CONNECTION-TIMEOUT*" :hunchentoot)))
+    (setf (symbol-value (intern "*DEFAULT-CONNECTION-TIMEOUT*" :hunchentoot)) nil))
   ;; Register a thin indirection so reload_harness can redefine
   ;; WEB-ON-NEW-WINDOW and have new browser connections pick up the
   ;; updated code without restarting the CLOG server. CLOG stores the
