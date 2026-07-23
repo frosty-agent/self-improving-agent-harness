@@ -46,7 +46,7 @@ RUN npm install --global --no-fund --no-audit "@openai/codex@${CODEX_CLI_VERSION
 # chromium-headless-shell is installed (--only-shell): the harness launches
 # headless only, so the full ~379M chromium bundle is unnecessary.
 #
-# Version is pinned to match package.json's "playwright" dependency
+# Version is pinned to match src/tooling/browser/package.json's "playwright" dependency
 # (^1.61.1 -> 1.61.1); the browser build number is derived from that version
 # (chromium-1228). Bump both together deliberately.
 #

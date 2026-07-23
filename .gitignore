@@ -34,3 +34,7 @@ bin/__pycache__/
 
 # Temporary planning/design documents
 docs-tmp/
+
+# Node dependencies for the Playwright browser bridge (src/tooling/browser/).
+# Installed on the host; the workspace mounts read-only at runtime.
+node_modules/
