@@ -37,9 +37,9 @@ send handler checks this after the turn completes and triggers the refresh.")
           :backend (web-selected-backend (let ((saved (getf descriptor :backend)))
                                            (if (member saved '("synthetic" "openrouter" "codex" "claude" "claude-sdk") :test #'string=)
                                                saved
-                                               "synthetic"))
+                                               "claude-sdk"))
                                          :session-id (getf descriptor :provider-session-id))
-          :model (or (getf descriptor :model) "syn:large:text")
+          :model (or (getf descriptor :model) "claude-haiku-4-5-20251001")
           :max-rounds (or (getf descriptor :max-rounds) 60)
           :history (getf descriptor :history)
           :durable-session-id durable-id
@@ -290,8 +290,8 @@ after a turn completes."
          (request-in-progress-p nil)
          (sessions-collapsed-p t))
     (declare (ignore heading run-label run-id browser-label durable-label backend-label model-label))
-    (setf (clog:value backend-input) "synthetic"
-          (clog:value model-input) "syn:large:text")
+    (setf (clog:value backend-input) "claude-sdk"
+          (clog:value model-input) "claude-haiku-4-5-20251001")
     (setf (clog:attribute composer "placeholder") "Enter a prompt")
     (setf (clog:disabledp send) t)
     (clog:set-on-focus
@@ -312,7 +312,7 @@ after a turn completes."
                      (clog:disabledp send) (or (null session) request-in-progress-p)
                      (clog:value composer) ""
                      (clog:value backend-input) (if session (backend-name (chat-session-backend (web-session-chat-session session))) "synthetic")
-                     (clog:value model-input) (if session (chat-session-model (web-session-chat-session session)) "syn:large:text"))
+                     (clog:value model-input) (if session (chat-session-model (web-session-chat-session session)) "claude-haiku-4-5-20251001"))
                (when session
                  (dolist (event (web-session-events session))
                    (web-render-chat-message chat-log event))
