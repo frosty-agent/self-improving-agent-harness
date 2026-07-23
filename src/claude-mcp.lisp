@@ -71,7 +71,7 @@ schemas.  Tool schemas arrive over MCP from CLAUDE-MCP-TOOL-SPECIFICATIONS."
         (claude-mcp-object
          "content" (vector (claude-mcp-object "type" "text"
                                                "text" (claude-mcp-safe-text result)))
-         "isError" nil))
+         "isError" yason:false))
     (error (condition)
       (claude-mcp-object
        "content" (vector (claude-mcp-object
@@ -92,7 +92,7 @@ schemas.  Tool schemas arrive over MCP from CLAUDE-MCP-TOOL-SPECIFICATIONS."
         id (claude-mcp-object
             "protocolVersion" "2024-11-05"
             "capabilities" (claude-mcp-object
-                            "tools" (claude-mcp-object "listChanged" nil))
+                            "tools" (claude-mcp-object))
             "serverInfo" (claude-mcp-object "name" "harness-lisp-bridge"
                                              "version" "1"))))
       ((string= method "tools/list")
