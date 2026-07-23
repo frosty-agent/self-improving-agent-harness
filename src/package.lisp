@@ -172,6 +172,21 @@
    #:codex-verification-evidence
    #:format-codex-verification-evidence
    #:*codex-verify-prompt*
+   ;; Claude Code CLI backend (setup-token OAuth stays environment-only)
+   #:claude-backend
+   #:make-claude-backend
+   #:claude-backend-error
+   #:claude-backend-error-reason
+   #:claude-backend-session-id
+   #:claude-oauth-token-present-p
+   #:claude-cli-argv
+   #:claude-parse-response
+   #:*claude-command*
+   #:*claude-request-timeout-seconds*
+   #:verify-claude-oauth
+   #:claude-verification-evidence
+   #:format-claude-verification-evidence
+   #:*claude-verify-prompt*
    #:openrouter-backend
    #:make-openrouter-backend
    #:openrouter-backend-base-url

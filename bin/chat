@@ -26,8 +26,8 @@ also pass --model/--max-rounds. Errors (no snapshot) fall back to a fresh sessio
   openrouter  (default) OpenRouter Chat Completions via OPENROUTER_API_KEY
   synthetic             Synthetic OpenAI-compatible Chat Completions via SYNTHETIC_API_KEY
   codex       ChatGPT/Codex *subscription* via local codex app-server (no API key)
+  claude      Claude Code CLI via CLAUDE_CODE_OAUTH_TOKEN setup-token (no API key)
 
-OpenAI Platform API-key billing (OPENAI_API_KEY / api.openai.com) is not available.
 HARNESS_BACKEND=openai is rejected. --backend openai errors at the CLI.
 
 --codex-home PATH sets CODEX_HOME for the Codex subscription backend (OAuth home
@@ -140,13 +140,13 @@ fi
 # Normalize backend name (case-insensitive).
 backend_normalized=$(printf '%s' "$backend" | tr '[:upper:]' '[:lower:]')
 case "$backend_normalized" in
-  openrouter|synthetic|codex) backend=$backend_normalized ;;
+  openrouter|synthetic|codex|claude) backend=$backend_normalized ;;
   openai)
     printf '%s\n' 'bin/chat: --backend openai is not supported (no OPENAI_API_KEY / OpenAI Platform billing). Use --backend codex for ChatGPT/Codex subscription usage, or openrouter.' >&2
     exit 2
     ;;
   *)
-    printf '%s\n' "bin/chat: --backend must be openrouter, synthetic, or codex, got: $backend" >&2
+    printf '%s\n' "bin/chat: --backend must be openrouter, synthetic, codex, or claude, got: $backend" >&2
     exit 2
     ;;
 esac

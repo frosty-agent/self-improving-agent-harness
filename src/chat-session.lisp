@@ -167,7 +167,10 @@ synthetic follow-ups bind it to \"harness\") and written into JSONL."
                    (chat-session-history session)
                    :model (chat-session-model session)
                    :max-rounds (chat-session-max-rounds session)
-                   :backend (backend-name (chat-session-backend session)))))
+                   :backend (backend-name (chat-session-backend session))
+                   :provider-session-id
+                   (and (typep (chat-session-backend session) 'claude-backend)
+                        (claude-backend-session-id (chat-session-backend session))))))
               (log-interaction :info "turn-completed"
                                :initiator *interaction-turn-initiator*
                                :model (completion-response-model response)

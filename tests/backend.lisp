@@ -34,6 +34,7 @@
       (run-codex-jsonrpc-tests)
       (run-codex-app-server-tests)
       (run-codex-backend-tests)
+      (run-claude-backend-tests)
       (run-openrouter-adapter-tests)
       (run-synthetic-adapter-tests)
       (run-tool-loop-tests)

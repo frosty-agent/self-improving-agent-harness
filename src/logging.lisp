@@ -488,22 +488,22 @@ stderr."
 (defparameter +session-history-schema-version+ 1
   "Schema version of the .history.json snapshot format.")
 
-(defun session-history-snapshot-object (history &key model max-rounds backend)
+(defun session-history-snapshot-object (history &key model max-rounds backend provider-session-id)
   "Return a keyword plist describing HISTORY for JSON encoding.
 
-MESSAGES preserves the raw CHAT-SESSION-HISTORY plists (role/content plus any
-tool-calls / tool-call-id), which OPENROUTER-JSON-VALUE renders to snake_case
-(tool_calls, tool_call_id) exactly as the provider API expects."
+PROVIDER-SESSION-ID is optional non-secret provider resume state (currently the
+Claude Code CLI session id), retained separately from the harness durable id."
   (append (list :schema-version +session-history-schema-version+)
           (when *interaction-log-file-id*
             (list :session-id *interaction-log-file-id*))
           (when model (list :model model))
           (when (integerp max-rounds) (list :max-rounds max-rounds))
           (when backend (list :backend backend))
+          (when provider-session-id (list :provider-session-id provider-session-id))
           (list :saved-at (interaction-log-timestamp)
                 :messages history)))
 
-(defun write-session-history-snapshot (history &key model max-rounds backend)
+(defun write-session-history-snapshot (history &key model max-rounds backend provider-session-id)
   "Atomically write HISTORY to *SESSION-HISTORY-PATH* as JSON, if configured.
 
 Best-effort: any failure is swallowed so a snapshot problem never aborts a chat
@@ -520,7 +520,8 @@ PATHNAME-NAME/PATHNAME-TYPE round-tripping."
       (let* ((final-ns (uiop:native-namestring *session-history-path*))
              (temp-ns (concatenate 'string final-ns ".tmp"))
              (object (session-history-snapshot-object
-                      history :model model :max-rounds max-rounds :backend backend)))
+                      history :model model :max-rounds max-rounds :backend backend
+                      :provider-session-id provider-session-id)))
         (with-open-file (stream temp-ns :direction :output
                                 :if-does-not-exist :create
                                 :if-exists :supersede
@@ -575,12 +576,11 @@ file: resume must degrade gracefully."
                 (mapcar #'session-history-json->plist messages)))))))))
 
 (defun read-session-snapshot-metadata (path)
-  "Read a .history.json snapshot and return (VALUES SESSION-ID MODEL MAX-ROUNDS BACKEND).
+  "Read a .history.json snapshot and return session/model/backend resume metadata.
 
-BACKEND is optional metadata added for client interoperability; older snapshots return NIL.
-Any component is NIL when absent/unreadable. Used by the resume path to adopt
-the prior session's id (so resumed turns append to the same log files), model,
-and tool-loop round limit. Never signals: resume must degrade gracefully."
+Returns (VALUES SESSION-ID MODEL MAX-ROUNDS BACKEND PROVIDER-SESSION-ID). The
+last value is optional, so older snapshots remain resumable. Any component is
+NIL when absent/unreadable. Never signals: resume must degrade gracefully."
   (block nil
     (handler-case
         (when (and path (probe-file path))
@@ -593,7 +593,8 @@ and tool-loop round limit. Never signals: resume must degrade gracefully."
                     (values (gethash "session_id" object)
                             (gethash "model" object)
                             (and (integerp max-rounds) max-rounds)
-                            (gethash "backend" object))))))))
+                            (gethash "backend" object)
+                            (gethash "provider_session_id" object))))))))
       (error () nil))
     (values nil nil nil)))
 
@@ -636,11 +637,12 @@ sessions."
       (loop for path in (sort paths #'string> :key #'file-namestring)
             for history = (read-session-history-snapshot path)
             when history
-              collect (multiple-value-bind (session-id model max-rounds backend)
+              collect (multiple-value-bind (session-id model max-rounds backend provider-session-id)
                           (read-session-snapshot-metadata path)
                         (list :session-id (or session-id
                                               (let* ((name (file-namestring path))
                                                      (suffix ".history.json"))
                                                 (subseq name 0 (- (length name) (length suffix)))))
                               :path path :history history :model model
-                              :max-rounds max-rounds :backend backend))))))
+                              :max-rounds max-rounds :backend backend
+                              :provider-session-id provider-session-id))))))

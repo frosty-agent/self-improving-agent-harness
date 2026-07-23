@@ -8,6 +8,8 @@ HARNESS_BACKEND selects the provider adapter:
  - \"synthetic\" -> make-synthetic-backend via SYNTHETIC_API_KEY
  - \"codex\" -> make-codex-app-server-backend (ChatGPT/Codex *subscription* via
     local codex app-server; no API key)
+ - \"claude\" -> make-claude-backend (local Claude Code CLI using a runtime
+    CLAUDE_CODE_OAUTH_TOKEN setup-token; no Anthropic HTTP API)
 
 OpenAI Platform billing is intentionally unsupported:
   - \"openai\" is a hard error
@@ -24,10 +26,12 @@ There is no automatic cross-provider fallback."
            (make-synthetic-backend :api-key (uiop:getenv "SYNTHETIC_API_KEY")))
           ((string= name "codex")
            (make-codex-app-server-backend))
+          ((string= name "claude")
+           (make-claude-backend))
           ((string= name "openai")
            (error "HARNESS_BACKEND=openai is not supported. OpenAI Platform API-key billing is out of scope; use HARNESS_BACKEND=codex for ChatGPT/Codex subscription usage (no OPENAI_API_KEY), or openrouter for OPENROUTER_API_KEY."))
           (t
-           (error "HARNESS_BACKEND must be openrouter, synthetic, or codex, got ~S. OpenAI Platform API-key billing is not available." raw))))))
+           (error "HARNESS_BACKEND must be openrouter, synthetic, codex, or claude, got ~S. OpenAI Platform API-key billing is not available." raw))))))
 
 (defun backend-api-key-configured-p (backend)
   "True when BACKEND carries a non-empty runtime API key (never the key itself).

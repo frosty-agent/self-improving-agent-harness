@@ -13,11 +13,13 @@ OpenAI Platform API-key billing is rejected. No OPENAI_API_KEY path exists."
              (let ((saved-backend (env "HARNESS_BACKEND"))
                    (saved-or (env "OPENROUTER_API_KEY"))
                    (saved-synthetic (env "SYNTHETIC_API_KEY"))
+                   (saved-claude (env "CLAUDE_CODE_OAUTH_TOKEN"))
                    (saved-oa (env "OPENAI_API_KEY")))
                (unwind-protect (funcall thunk)
                  (set-env "HARNESS_BACKEND" saved-backend)
                  (set-env "OPENROUTER_API_KEY" saved-or)
                  (set-env "SYNTHETIC_API_KEY" saved-synthetic)
+                 (set-env "CLAUDE_CODE_OAUTH_TOKEN" saved-claude)
                  (set-env "OPENAI_API_KEY" saved-oa)))))
     (with-restored-env
      (lambda ()
@@ -66,6 +68,16 @@ OpenAI Platform API-key billing is rejected. No OPENAI_API_KEY path exists."
        (let ((b (select-chat-backend)))
          (ensure-true (typep b 'self-improving-agent-harness:codex-app-server-backend)
                       "HARNESS_BACKEND=codex is case-insensitive"))
+
+       (set-env "HARNESS_BACKEND" "CLAUDE")
+       (set-env "CLAUDE_CODE_OAUTH_TOKEN" "selection-fixture-not-a-real-token")
+       (let ((b (select-chat-backend)))
+         (ensure-true (typep b 'self-improving-agent-harness:claude-backend)
+                      "HARNESS_BACKEND=claude selects the Claude CLI backend")
+         (ensure-equal "claude" (backend-name b)
+                       "Claude backend has a stable provider identity")
+         (ensure-true (not (backend-api-key-configured-p b))
+                      "Claude setup-token backend is not an API-key backend"))
 
        ;; OpenAI Platform API-key path is explicitly rejected.
        (set-env "HARNESS_BACKEND" "openai")

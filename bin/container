@@ -89,8 +89,14 @@ fi
 if [ "${CODEX_HOME+x}" = x ]; then
   host_key_options="$host_key_options --env CODEX_HOME"
 fi
+if [ "${CLAUDE_CODE_OAUTH_TOKEN+x}" = x ]; then
+  host_key_options="$host_key_options --env CLAUDE_CODE_OAUTH_TOKEN"
+fi
 if [ "${HARNESS_LIVE_CODEX_SMOKE+x}" = x ]; then
   host_key_options="$host_key_options --env HARNESS_LIVE_CODEX_SMOKE"
+fi
+if [ "${HARNESS_LIVE_CLAUDE_SMOKE+x}" = x ]; then
+  host_key_options="$host_key_options --env HARNESS_LIVE_CLAUDE_SMOKE"
 fi
 
 # The --no-network switch is understood only by bin/container and becomes

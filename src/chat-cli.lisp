@@ -452,7 +452,7 @@ fresh session instead."
             (history (if (pathnamep snapshot) nil (getf snapshot :history))))
         (setf history (or history (read-session-history-snapshot path)))
         (when (and history (listp history))
-          (multiple-value-bind (session-id model max-rounds backend)
+          (multiple-value-bind (session-id model max-rounds backend provider-session-id)
               (read-session-snapshot-metadata path)
             (list :session-id (or session-id
                                   (snapshot-session-id-from-path path))
@@ -460,6 +460,7 @@ fresh session instead."
                   :model model
                   :max-rounds max-rounds
                   :backend backend
+                  :provider-session-id provider-session-id
                   :path path)))))))
 
 (defparameter *workspace-env-file*
@@ -557,7 +558,7 @@ not an error. Returns the list of variable names set."
          (backend-override (let ((saved (getf resume-plan :backend)))
                              (and resume-plan
                                   (not (string= (or (uiop:getenv "HARNESS_CHAT_BACKEND_EXPLICIT") "") "true"))
-                                  (member saved '("openrouter" "synthetic" "codex") :test #'string=)
+                                  (member saved '("openrouter" "synthetic" "codex" "claude") :test #'string=)
                                   saved)))
          (backend (make-chat-backend :backend backend-override)))
     ;; One session JSONL file per process: agent-logs/$ISO-TIMESTAMP.jsonl under
@@ -567,6 +568,11 @@ not an error. Returns the list of variable names set."
     ;; timestamp.
     (configure-interaction-logging log-directory :session-id session-id)
     (load-workspace-env-file)
+    ;; Claude's provider session id is persisted independently of the harness
+    ;; durable session id, allowing `bin/chat -c` to use --resume exactly.
+    (when (typep backend 'claude-backend)
+      (setf (claude-backend-session-id backend)
+            (getf resume-plan :provider-session-id)))
     (when (and resume-requested (null resume-plan))
       (format *error-output*
               "~&No resumable session snapshot found under ~A; starting fresh.~%"

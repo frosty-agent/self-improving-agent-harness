@@ -130,10 +130,17 @@ expect_error 2 'SYNTHETIC_API_KEY must be exported' \
       HARNESS_ENV_FILE=/nonexistent/chat-cli-no-env-file \
       "$repo_root/bin/chat" --backend synthetic --prompt x
 
+# Claude is a binary/OAuth backend, so wrapper parsing accepts it without an
+# OpenRouter key; the Lisp backend performs the credential-safe preflight.
+expect_success 'backend=claude' \
+  env -u OPENROUTER_API_KEY HARNESS_CHAT_RUNNER="$runner" \
+      HARNESS_ENV_FILE=/nonexistent/chat-cli-no-env-file \
+      "$repo_root/bin/chat" --backend CLAUDE --model sonnet --prompt 'claude path'
+
 expect_error 2 'not supported' \
   env OPENROUTER_API_KEY=test-key HARNESS_CHAT_RUNNER="$runner" \
       "$repo_root/bin/chat" --backend openai --prompt x
-expect_error 2 'must be openrouter, synthetic, or codex' \
+expect_error 2 'must be openrouter, synthetic, codex, or claude' \
   env OPENROUTER_API_KEY=test-key HARNESS_CHAT_RUNNER="$runner" \
       "$repo_root/bin/chat" --backend nope --prompt x
 expect_error 2 'only valid with --backend codex' \

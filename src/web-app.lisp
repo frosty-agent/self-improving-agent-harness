@@ -35,9 +35,10 @@ send handler checks this after the turn completes and triggers the refresh.")
         (web-register-session
          (make-web-session
           :backend (web-selected-backend (let ((saved (getf descriptor :backend)))
-                                           (if (member saved '("synthetic" "openrouter" "codex") :test #'string=)
+                                           (if (member saved '("synthetic" "openrouter" "codex" "claude") :test #'string=)
                                                saved
-                                               "synthetic")))
+                                               "synthetic"))
+                                         :session-id (getf descriptor :provider-session-id))
           :model (or (getf descriptor :model) "syn:large:text")
           :max-rounds (or (getf descriptor :max-rounds) 60)
           :history (getf descriptor :history)
@@ -84,14 +85,15 @@ of registration order."
     (make-completion-response :text "Deterministic tool flow completed."
                               :model "web/fake" :finish-reason "stop"))))
 
-(defun web-selected-backend (name)
+(defun web-selected-backend (name &key session-id)
   "Construct the selected provider adapter without exposing credentials to the UI."
   (if (string= (or *web-fake-scenario* "") "tool-success")
       (make-web-fake-backend)
       (cond ((string= name "synthetic") (make-synthetic-backend :api-key (uiop:getenv "SYNTHETIC_API_KEY")))
             ((string= name "openrouter") (make-openrouter-backend :api-key (uiop:getenv "OPENROUTER_API_KEY")))
             ((string= name "codex") (make-codex-app-server-backend))
-            (t (error "Backend must be synthetic, openrouter, or codex; got ~S." name)))))
+            ((string= name "claude") (make-claude-backend :session-id session-id))
+            (t (error "Backend must be synthetic, openrouter, codex, or claude; got ~S." name)))))
 
 (defun web-html-escape (text)
   (with-output-to-string (out)

@@ -41,6 +41,15 @@ RUN npm install --global --no-fund --no-audit "@openai/codex@${CODEX_CLI_VERSION
     && codex --version \
     && npm cache clean --force
 
+# Install the official Claude Code native binary for the Claude CLI-only backend
+# (issues #49/#51). The package's postinstall selects the platform-native binary;
+# Claude OAuth is runtime-only via CLAUDE_CODE_OAUTH_TOKEN, never a build arg or
+# image layer. Pinned and verified against 2.1.218; bump deliberately.
+ARG CLAUDE_CODE_VERSION=2.1.218
+RUN npm install --global --no-fund --no-audit "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && claude --version \
+    && npm cache clean --force
+
 # Headless Chromium (Playwright) for driving the CLOG web UI from inside the
 # container (e.g. browser-driven smoke tests / screenshots). Only the
 # chromium-headless-shell is installed (--only-shell): the harness launches

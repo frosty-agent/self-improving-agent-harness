@@ -240,6 +240,41 @@ HARNESS_LIVE_CODEX_SMOKE=1 bin/verify-codex-chatgpt-auth   # subscription turn; 
 See `docs/codex-subscription-backend.md` (decision record + verified protocol
 facts) and `docs/runtime.md` (credential/`CODEX_HOME` policy).
 
+## Claude Code CLI backend (opt-in, issue #49)
+
+`claude` is a binary-only backend: the harness invokes the pinned official
+Claude Code CLI with `claude -p --output-format json`; it does **not** call the
+Anthropic Messages API, accept an Anthropic API key, or forward through
+OpenRouter or Synthetic. The Docker image installs the pinned
+`@anthropic-ai/claude-code` native binary. Its setup-token OAuth access token is
+runtime-only and is never placed in image layers, command-line arguments, logs,
+or durable session artifacts.
+
+On a machine authenticated to the intended Claude subscription, generate a token
+with `claude setup-token`, then put it in the untracked repository `.env`:
+
+```bash
+CLAUDE_CODE_OAUTH_TOKEN=...  # never commit this value
+./bin/chat --backend claude --model sonnet --prompt 'Reply with one sentence.'
+```
+
+Claude JSON output provides completion text, metadata, and a `session_id`. The
+backend retains that ID and uses `--resume <session_id>` for later turns in the
+same running harness session; it intentionally does not rely on directory-scoped
+`--continue`. Claude-native tools are disabled with `--bare` for now: the
+harness exposes no synthetic text/XML tool-call bridge and remains tool-free
+until structured `stream-json` event mediation is proven safe.
+
+Run the explicit, billable live proof (excluded from `make test`) after setting
+the token:
+
+```bash
+HARNESS_LIVE_CLAUDE_SMOKE=1 bin/verify-claude-oauth
+```
+
+It makes two real CLI calls, validates structured JSON and exact-session resume,
+and emits only sanitized evidence.
+
 ## Chat CLI
 
 `bin/chat` runs the harness `run_shell` tool inside its Docker container. It has
