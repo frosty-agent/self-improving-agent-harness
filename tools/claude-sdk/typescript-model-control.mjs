@@ -10,6 +10,7 @@ try {
   })) {
     console.log(JSON.stringify({
       requested_model: model,
+      resolved_model: typeof message.model === 'string' ? message.model : null,
       type: message.type,
       subtype: message.subtype ?? null,
       is_error: message.is_error ?? null,

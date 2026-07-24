@@ -18,6 +18,7 @@ for _ in $(seq 1 30); do [ -s "$work/mitmproxy-ca-cert.pem" ] && break; sleep 1;
 docker run --rm --init --network "$net" --env-file "$repo/.env" --env CLAUDE_TEST_MODEL="$model" --env HTTPS_PROXY=http://"$proxy":8080 --env HTTP_PROXY=http://"$proxy":8080 --env NODE_EXTRA_CA_CERTS=/capture/mitmproxy-ca-cert.pem -v "$work:/capture:ro" -v "$repo/tools/claude-sdk/typescript-model-control.mjs:/work/control.mjs:ro" -w /work --entrypoint /bin/sh "$image" -lc 'npm install --no-save --no-fund --no-audit @anthropic-ai/claude-agent-sdk >/dev/null && node control.mjs >/dev/null'
 [ -s "$work/manifest.json" ] || { echo 'TypeScript manifest missing' >&2; exit 1; }
 mv "$work/manifest.json" "$work/typescript-sdk.json"
+mv "$work/all-manifests.json" "$work/typescript-sdk-all.json"
 docker rm -f "$proxy" >/dev/null
 start_proxy
 set +e
@@ -25,8 +26,12 @@ docker run --rm --init --network "$net" --env-file "$repo/.env" --env HARNESS_BA
 set -e
 [ -s "$work/manifest.json" ] || { tail -n 40 /tmp/claude-sdk-proxy-lisp-diagnostic.txt >&2; exit 1; }
 mv "$work/manifest.json" "$work/lisp-sdk.json"
+mv "$work/all-manifests.json" "$work/lisp-sdk-all.json"
 python3 - "$work" <<'PY'
 import json, sys
-for name in ('typescript-sdk.json', 'lisp-sdk.json'):
- print(json.dumps(json.load(open(f'{sys.argv[1]}/{name}')), sort_keys=True))
+for name in ('typescript-sdk-all.json', 'lisp-sdk-all.json'):
+    flows = json.load(open(f'{sys.argv[1]}/{name}'))
+    print(json.dumps({'capture': name, 'flows': [
+        {'requested_model': f['requested_model'], 'status': f['status'],
+         'response_content_type': f['response_content_type']} for f in flows]}, sort_keys=True))
 PY

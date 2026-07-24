@@ -20,7 +20,10 @@ def shape(value):
 
 def response(flow: http.HTTPFlow):
     request = flow.request
-    if OUT.exists() or request.host.lower() != 'api.anthropic.com' or request.path.split('?', 1)[0] != '/v1/messages' or request.method != 'POST': return
+    if (request.host.lower() != 'api.anthropic.com'
+            or request.path.split('?', 1)[0] != '/v1/messages'
+            or request.method != 'POST'):
+        return
     try: payload = json.loads(request.get_text(strict=False))
     except Exception: return
     headers, redacted = {}, []
@@ -31,5 +34,13 @@ def response(flow: http.HTTPFlow):
     response_headers = {key.lower(): value.strip() for key, value in flow.response.headers.items(multi=False) if key.lower() in SAFE_RESPONSE_HEADERS}
     result = {'method': 'POST', 'host': 'api.anthropic.com', 'path': '/v1/messages', 'status': flow.response.status_code, 'requested_model': payload.get('model') if isinstance(payload.get('model'), str) else None, 'request_headers': headers, 'redacted_request_header_names': sorted(set(redacted)), 'payload_shape': shape(payload), 'response_headers': response_headers, 'response_content_type': flow.response.headers.get('content-type', '')}
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(result, sort_keys=True, indent=2) + '\n')
+    all_out = OUT.with_name('all-manifests.json')
+    try:
+        captured = json.loads(all_out.read_text()) if all_out.exists() else []
+    except Exception:
+        captured = []
+    captured.append(result)
+    all_out.write_text(json.dumps(captured, sort_keys=True, indent=2) + '\n')
+    if not OUT.exists():
+        OUT.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
     ctx.log.info('SAFE_EXPANDED_COMPARE_MANIFEST_WRITTEN')
