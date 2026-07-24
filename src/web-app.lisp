@@ -111,6 +111,53 @@ of registration order."
   (setf (clog:attribute element "style") value)
   element)
 
+(defun web-backend-options ()
+  "Return a list of available backends (some but not all)."
+  '("synthetic" "openrouter" "codex" "claude" "claude-sdk"))
+
+(defun web-model-options-for-backend (backend)
+  "Return a list of model options for the given backend (some but not all)."
+  (cond
+    ((string= backend "claude-sdk")
+     '("claude-fable-5"
+       "claude-opus-4-8"
+       "claude-opus-4-7"
+       "claude-opus-4-6"
+       "claude-opus-4-5-20251101"
+       "claude-opus-4-1-20250805"
+       "claude-sonnet-5"
+       "claude-sonnet-4-6"
+       "claude-sonnet-4-5-20250929"
+       "claude-haiku-4-5-20251001"))
+    ((string= backend "openrouter")
+     '("gpt-4-turbo"
+       "gpt-4o"
+       "claude-3.5-sonnet"
+       "meta-llama/llama-2-70b-chat"
+       "microsoft/phi-3-mini"))
+    ((string= backend "synthetic")
+     '("gpt-4-turbo"
+       "gpt-4o"
+       "gpt-3.5-turbo"
+       "claude-3.5-sonnet"))
+    ((string= backend "codex")
+     '("gpt-5-codex"))
+    ((string= backend "claude")
+     '("sonnet"
+       "opus"))
+    (t '())))
+
+(defun web-create-editable-dropdown (parent options default-value)
+  "Create a select element with predefined options and styling."
+  (let ((select (clog:create-select parent)))
+    (clog:add-select-option select "" "-- Select or type --")
+    (dolist (option options)
+      (clog:add-select-option select option option))
+    (setf (clog:value select) default-value)
+    (web-style select "padding:6px;font-family:ui-monospace,monospace")
+    select))
+
+
 (defun web-split-lines (text)
   "Split TEXT into a list of lines on #\Newline, stripping trailing #\Return."
   (let ((text (or text ""))
@@ -264,9 +311,9 @@ after a turn completes."
          (run-label (clog:create-div controls :content "Harness run ID:"))
          (run-id (web-mark (clog:create-div controls :content (or *web-run-session-id* "not supplied")) "harness-run-id"))
          (backend-label (clog:create-div controls :content "Backend:"))
-         (backend-input (web-mark (web-style (clog:create-form-element controls :text) "width:110px;padding:6px;font-family:ui-monospace,monospace") "backend-input"))
+         (backend-input (web-mark (web-create-editable-dropdown controls (web-backend-options) "claude-sdk") "backend-input"))
          (model-label (clog:create-div controls :content "Model:"))
-         (model-input (web-mark (web-style (clog:create-form-element controls :text) "width:160px;padding:6px;font-family:ui-monospace,monospace") "model-input"))
+         (model-input (web-mark (web-create-editable-dropdown controls (web-model-options-for-backend "claude-sdk") "claude-haiku-4-5-20251001") "model-input"))
          (start (web-mark (clog:create-button controls :content "New session") "start-session"))
          (clear (web-mark (clog:create-button controls :content "Clear session") "clear-session"))
          (state (web-mark (clog:create-div controls :content "not started") "session-state"))
